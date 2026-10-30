@@ -25,8 +25,9 @@
         data-search-url="/c/{{.CrewID}}/search" data-add-url="/c/{{.CrewID}}/entries"
         autocomplete="off" role="search">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input class="search-input" type="text" name="q" placeholder="add a game from the Steam store…"
-           aria-label="Search the Steam store" autocomplete="off" spellcheck="false">
+    <input class="search-input" type="text" name="q" placeholder="add a game by name, id or store link…"
+           aria-label="Search the Steam store" autocomplete="off" spellcheck="false"
+           data-search-url="/c/{{.CrewID}}/search" data-add-url="/c/{{.CrewID}}/entries">
     <div class="search-results"></div>
   </form>
   <div class="filters">

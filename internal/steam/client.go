@@ -206,9 +206,61 @@ func (c *Client) AppDetails(ctx context.Context, appid int, country, lang string
 	return raw.toGame(), nil
 }
 
+// rawDescribedThing is one genre or category. Steam sends the id as a bare
+// number, so it is not decoded at all: the description is the only part that
+// is ever shown, and a field no one reads must not be able to fail a decode.
 type rawDescribedThing struct {
-	ID          string `json:"id"`
 	Description string `json:"description"`
+}
+
+// Steam is not consistent about JSON types: a metascore arrives as "" when a
+// game has none and as a bare number when it has one, and app ids have been
+// seen as both. These two types accept either spelling, so a field nobody needs
+// cannot fail the decode of a response somebody does need.
+
+// flexString decodes a JSON string, number, or null into a string.
+type flexString string
+
+func (f *flexString) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || string(data) == "null" {
+		*f = ""
+		return nil
+	}
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		*f = flexString(s)
+		return nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(data, &n); err != nil {
+		return err
+	}
+	*f = flexString(n.String())
+	return nil
+}
+
+// flexInt decodes a JSON number, numeric string, or null into an int.
+type flexInt int
+
+func (f *flexInt) UnmarshalJSON(data []byte) error {
+	var s flexString
+	if err := s.UnmarshalJSON(data); err != nil {
+		return err
+	}
+	if s == "" {
+		*f = 0
+		return nil
+	}
+	n, err := strconv.Atoi(string(s))
+	if err != nil {
+		return err
+	}
+	*f = flexInt(n)
+	return nil
 }
 
 type rawReleaseDate struct {
@@ -326,11 +378,11 @@ func (c *Client) Search(ctx context.Context, term, country, lang string) ([]Sear
 	var resp struct {
 		Total int `json:"total"`
 		Items []struct {
-			Type      string `json:"type"`
-			Name      string `json:"name"`
-			ID        int    `json:"id"`
-			TinyImage string `json:"tiny_image"`
-			Metascore string `json:"metascore"`
+			Type      string     `json:"type"`
+			Name      string     `json:"name"`
+			ID        flexInt    `json:"id"`
+			TinyImage string     `json:"tiny_image"`
+			Metascore flexString `json:"metascore"`
 			Price     *struct {
 				Currency string `json:"currency"`
 				Initial  int64  `json:"initial"`
@@ -348,10 +400,10 @@ func (c *Client) Search(ctx context.Context, term, country, lang string) ([]Sear
 			continue
 		}
 		sr := SearchResult{
-			AppID:     it.ID,
+			AppID:     int(it.ID),
 			Name:      it.Name,
 			TinyImage: it.TinyImage,
-			Metascore: it.Metascore,
+			Metascore: string(it.Metascore),
 		}
 		if it.Price != nil {
 			sr.Currency = it.Price.Currency

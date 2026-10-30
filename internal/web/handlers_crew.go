@@ -138,6 +138,10 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		found, err := s.cat.Search(r.Context(), term, crew.Country, crew.Language)
 		if err != nil {
 			s.log.Warn("steam search", "term", term, "err", err)
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Steam search did not answer. Try again in a moment."})
+			return
 		}
 		for _, item := range found {
 			res := result{AppID: item.AppID, Name: item.Name, Image: item.TinyImage, Meta: item.Metascore}

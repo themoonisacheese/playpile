@@ -2,11 +2,13 @@ package steam
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,8 +33,8 @@ const appDetailsOK = `{"730":{"success":true,"data":{
 	"short_description":"A tactical shooter.",
 	"developers":["Valve"],
 	"publishers":["Valve"],
-	"genres":[{"id":"1","description":"Action"},{"id":"37","description":"Free to Play"}],
-	"categories":[{"id":"1","description":"Multi-player"},{"id":"49","description":"PvP"}],
+	"genres":[{"id":1,"description":"Action"},{"id":37,"description":"Free to Play"}],
+	"categories":[{"id":1,"description":"Multi-player"},{"id":49,"description":"PvP"}],
 	"release_date":{"coming_soon":false,"date":"21 Aug, 2012"},
 	"platforms":{"windows":true,"mac":false,"linux":true},
 	"price_overview":{"currency":"PLN","initial":19900,"final":9900,"discount_percent":50,"final_formatted":"99,00 zl"},
@@ -362,4 +364,81 @@ func ExampleClient_errorsIsNotFound() {
 	err := fmt.Errorf("wrapped: %w", ErrNotFound)
 	fmt.Println(errors.Is(err, ErrNotFound))
 	// Output: true
+}
+
+// TestAppDetailsToleratesAnyThingID pins the shape Steam actually sends: the
+// id of a genre or category is a JSON number. An id nobody reads must never be
+// able to fail the decode of a game the store does sell, so both spellings of
+// that field have to parse.
+func TestAppDetailsToleratesAnyThingID(t *testing.T) {
+	numeric := appDetailsOK                                       // what Steam sends
+	stringIDs := thingIDRe.ReplaceAllString(numeric, `"id":"$1"`) // what the old fixture had
+	if numeric == stringIDs {
+		t.Fatal("fixture carries no numeric thing ids to compare against")
+	}
+	for name, body := range map[string]string{"numeric ids": numeric, "string ids": stringIDs} {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(body))
+			}))
+			defer srv.Close()
+			g, err := newTestClient(srv.URL, srv.URL).AppDetails(context.Background(), 730, "US", "english")
+			if err != nil {
+				t.Fatalf("AppDetails: %v", err)
+			}
+			if len(g.Genres) != 2 || len(g.Categories) != 2 {
+				t.Errorf("genres %v categories %v", g.Genres, g.Categories)
+			}
+		})
+	}
+}
+
+// thingIDRe finds the genre/category ids in the fixture.
+var thingIDRe = regexp.MustCompile(`"id":([0-9]+)`)
+
+// TestSearchTolerantMetascore pins the shape storesearch really sends: a bare
+// number for games that have a Metascore and "" for the ones that do not.
+func TestSearchTolerantMetascore(t *testing.T) {
+	body := `{"total":2,"items":[
+		{"type":"app","name":"Portal","id":400,"tiny_image":"https://example.com/p.jpg","metascore":90,
+		 "price":{"currency":"EUR","initial":969,"final":969}},
+		{"type":"app","name":"Portal Knights","id":374040,"tiny_image":"https://example.com/k.jpg","metascore":"",
+		 "price":{"currency":"EUR","initial":1999,"final":1999}},
+		{"type":"dlc","name":"Not an app","id":1}
+	]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	got, err := newTestClient(srv.URL, srv.URL).Search(context.Background(), "portal", "FR", "english")
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d results, want 2 (the dlc is filtered): %v", len(got), got)
+	}
+	if got[0].AppID != 400 || got[0].Metascore != "90" {
+		t.Errorf("numeric metascore = %+v", got[0])
+	}
+	if got[1].AppID != 374040 || got[1].Metascore != "" {
+		t.Errorf("empty metascore = %+v", got[1])
+	}
+}
+
+func TestFlexIntRejectsInvalidIDs(t *testing.T) {
+	for _, input := range []string{`1.5`, `"1.5"`, `1e100`, `"NaN"`, `true`} {
+		var id flexInt
+		if err := json.Unmarshal([]byte(input), &id); err == nil {
+			t.Errorf("accepted invalid id %s: %d", input, id)
+		}
+	}
+	for _, input := range []string{`620`, `"620"`} {
+		var id flexInt
+		if err := json.Unmarshal([]byte(input), &id); err != nil || id != 620 {
+			t.Errorf("id %s: %d, %v", input, id, err)
+		}
+	}
 }

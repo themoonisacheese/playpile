@@ -204,8 +204,9 @@ func TestFullFlow(t *testing.T) {
 	if r, _ := addJSON("570"); r.StatusCode != http.StatusOK {
 		t.Fatal("second add failed")
 	}
-	if r, _ := addJSON("999999"); r.StatusCode != http.StatusBadGateway {
-		t.Fatalf("unknown appid = %d, want 502", r.StatusCode)
+	// A game Steam does not sell has no store page: that is a 404, not a 502.
+	if r, _ := addJSON("999999"); r.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown appid = %d, want 404", r.StatusCode)
 	}
 
 	// The list page shows the game with price, metascore and the summary.
@@ -331,3 +332,100 @@ func TestAnonymousRedirectsAndNotFound(t *testing.T) {
 		t.Fatalf("bad invite = %d", resp.StatusCode)
 	}
 }
+
+// TestAddEntryByName covers the search box as people actually use it: an exact
+// name, a bare app id typed in, a pasted store link, and the refusals when the
+// name matches nothing or more than one game.
+func TestAddEntryByName(t *testing.T) {
+	ts, _ := newApp(t)
+	c := newClient(t)
+	login(t, ts, c, "Ada")
+	csrf := csrfFrom(t, c, ts.URL+"/")
+	resp, _ := do(t, c, "POST", ts.URL+"/crews",
+		url.Values{"name": {"Friday"}, "country": {"US"}, "csrf": {csrf}}, nil)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create crew = %d", resp.StatusCode)
+	}
+	crew := ts.URL + strings.Split(resp.Header.Get("Location"), "?")[0]
+
+	addForm := func(term string) *http.Response {
+		t.Helper()
+		token := csrfFrom(t, c, crew)
+		r, _ := do(t, c, "POST", crew+"/entries", url.Values{"q": {term}, "csrf": {token}}, nil)
+		return r
+	}
+
+	for _, term := range []string{
+		"Team Defense", // exact name
+		"570",          // id typed in the box
+		"https://store.steampowered.com/app/730/Shooter/", // pasted store link
+	} {
+		if r := addForm(term); r.StatusCode != http.StatusSeeOther {
+			t.Fatalf("add %q = %d, want a redirect back to the list", term, r.StatusCode)
+		}
+	}
+
+	_, page := do(t, c, "GET", crew, nil, nil)
+	for _, name := range []string{"Team Defense", "Ancient Defense 2", "Shooter"} {
+		if !strings.Contains(page, name) {
+			t.Errorf("%q is not on the list\n%s", name, page)
+		}
+	}
+
+	// A name nobody has adds nothing.
+	before := strings.Count(page, "<article class=\"entry")
+	if r := addForm("Nonexistent Quest"); r.StatusCode != http.StatusSeeOther {
+		t.Errorf("unknown name = %d, want a redirect with a flash", r.StatusCode)
+	}
+	_, page = do(t, c, "GET", crew, nil, nil)
+	if got := strings.Count(page, "<article class=\"entry"); got != before {
+		t.Errorf("list grew from %d to %d rows after a failed add", before, got)
+	}
+
+	// An ambiguous name is refused by the JSON path with the candidates.
+	req, _ := http.NewRequest("POST", crew+"/entries", strings.NewReader(`{"q":"defense"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Playpile", "fetch")
+	r, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Body.Close()
+	body, _ := io.ReadAll(r.Body)
+	if r.StatusCode != http.StatusConflict {
+		t.Errorf("ambiguous name = %d, want 409", r.StatusCode)
+	}
+	if !strings.Contains(string(body), "Several games match") {
+		t.Errorf("ambiguous body = %s", body)
+	}
+}
+
+// TestSearchBoxIsWired pins the contract between the template and app.js: the
+// dropdown only initialises when the search input carries its search URL, and a
+// missing attribute silently disables the whole autocomplete.
+func TestSearchBoxIsWired(t *testing.T) {
+	ts, _ := newApp(t)
+	c := newClient(t)
+	login(t, ts, c, "Ada")
+	csrf := csrfFrom(t, c, ts.URL+"/")
+	resp, _ := do(t, c, "POST", ts.URL+"/crews",
+		url.Values{"name": {"Friday"}, "country": {"US"}, "csrf": {csrf}}, nil)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create crew = %d", resp.StatusCode)
+	}
+	crew := ts.URL + strings.Split(resp.Header.Get("Location"), "?")[0]
+	_, page := do(t, c, "GET", crew, nil, nil)
+
+	input := inputTagRe.FindString(page)
+	if input == "" {
+		t.Fatalf("no search input on the crew page")
+	}
+	for _, attr := range []string{`data-search-url="/c/`, `data-add-url="/c/`, `name="q"`} {
+		if !strings.Contains(input, attr) {
+			t.Errorf("search input is missing %s: %s", attr, input)
+		}
+	}
+}
+
+// inputTagRe finds the add-game search box in the rendered page.
+var inputTagRe = regexp.MustCompile(`<input class="search-input"[^>]*>`)

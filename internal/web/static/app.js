@@ -210,9 +210,7 @@
   /* ---------------------------------------------------------------
    * 3. Search box with debounce, dropdown results, add-on-click.
    * ------------------------------------------------------------- */
-  var searchInputs = document.querySelectorAll(
-    "input.search-input[data-search-url]"
-  );
+  var searchInputs = document.querySelectorAll("input.search-input");
 
   searchInputs.forEach(function (input) {
     var form = input.closest("form");
@@ -223,13 +221,21 @@
       : null;
     if (!results) return;
 
-    var searchUrl = input.getAttribute("data-search-url");
-    var addUrl = form ? form.getAttribute("data-add-url") : null;
+    // The URL lives on the input, and on the form as a fallback: an empty
+    // searchUrl used to silently disable the whole dropdown.
+    var searchUrl =
+      input.getAttribute("data-search-url") ||
+      (form ? form.getAttribute("data-search-url") : null);
+    var addUrl =
+      input.getAttribute("data-add-url") ||
+      (form ? form.getAttribute("data-add-url") : null);
+    if (!searchUrl) return;
     var debounceTimer = null;
     var sequence = 0;
-    var latestHandled = 0;
 
     function closeResults() {
+      ++sequence;
+      if (debounceTimer) clearTimeout(debounceTimer);
       results.classList.remove("is-open");
       results.innerHTML = "";
     }
@@ -318,27 +324,31 @@
 
     input.addEventListener("input", function () {
       var term = input.value.trim();
+      var mySeq = ++sequence;
       if (debounceTimer) clearTimeout(debounceTimer);
       if (term.length < 2) {
         closeResults();
         return;
       }
       debounceTimer = setTimeout(function () {
-        var mySeq = ++sequence;
         fetch(searchUrl + "?q=" + encodeURIComponent(term), {
           credentials: "same-origin",
           headers: { Accept: "application/json" },
         })
           .then(function (response) {
-            return response.json();
+            return response.json().then(function (data) {
+              if (!response.ok) throw new Error(data.error || "Steam search failed.");
+              return data;
+            });
           })
           .then(function (data) {
-            if (mySeq < latestHandled) return;
-            latestHandled = mySeq;
+            if (mySeq !== sequence) return;
             renderResults(data && data.results);
           })
-          .catch(function () {
-            /* Silently ignore search failures; the form still works. */
+          .catch(function (error) {
+            if (mySeq !== sequence) return;
+            closeResults();
+            showError(error.message || "Steam search failed. Please try again.");
           });
       }, 250);
     });

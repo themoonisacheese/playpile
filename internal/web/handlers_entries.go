@@ -1,11 +1,16 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 
+	"playpile/internal/catalog"
 	"playpile/internal/pile"
 	"playpile/internal/store"
 )
@@ -20,25 +25,113 @@ func (s *Server) entryVMByID(view *crewPageView, id int64) (entryVM, bool) {
 	return entryVM{}, false
 }
 
-// addAppID reads the app id from either a JSON body or a form post.
-func addAppID(w http.ResponseWriter, r *http.Request) (int, bool) {
-	if isJSONBody(r) {
-		var body struct {
-			AppID int `json:"appid"`
-		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
-			return 0, false
-		}
-		return body.AppID, body.AppID > 0
-	}
-	if err := r.ParseForm(); err != nil {
-		return 0, false
-	}
-	appid, ok := intParam(r.PostFormValue("appid"))
-	return appid, ok && appid > 0
+// addRequest is what an add-game post asked for: a Steam app id, or a term
+// typed into the box that still has to be resolved (a name, a store link, or
+// an id someone typed rather than clicked).
+type addRequest struct {
+	AppID int
+	Term  string
 }
 
-// handleAddEntry puts a game on the list.
+// readAddRequest reads the app id and/or search term from a JSON body or a
+// plain form post. malformed reports a body that could not be parsed.
+func readAddRequest(w http.ResponseWriter, r *http.Request) (req addRequest, malformed bool) {
+	if isJSONBody(r) {
+		var body struct {
+			AppID int    `json:"appid"`
+			Q     string `json:"q"`
+			Term  string `json:"term"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil {
+			return addRequest{}, true
+		}
+		req = addRequest{AppID: body.AppID, Term: firstNonEmpty(body.Q, body.Term)}
+		return req, false
+	}
+	if err := r.ParseForm(); err != nil {
+		return addRequest{}, true
+	}
+	appid, _ := intParam(r.PostFormValue("appid"))
+	req = addRequest{
+		AppID: appid,
+		Term:  firstNonEmpty(r.PostFormValue("q"), r.PostFormValue("term")),
+	}
+	return req, false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if s := strings.TrimSpace(v); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// storeAppLink matches the app id in a Steam store URL, so a pasted
+// "https://store.steampowered.com/app/620/Portal_2/" works too.
+var storeAppLink = regexp.MustCompile(`/app/([0-9]+)`)
+
+// appIDFromText pulls an app id out of a bare number or a Steam store link.
+func appIDFromText(text string) (int, bool) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0, false
+	}
+	if id, err := strconv.Atoi(text); err == nil && id > 0 {
+		return id, true
+	}
+	if m := storeAppLink.FindStringSubmatch(text); m != nil {
+		if id, err := strconv.Atoi(m[1]); err == nil && id > 0 {
+			return id, true
+		}
+	}
+	return 0, false
+}
+
+// resolveAdd turns a request into an app id. A name is looked up on the store:
+// an exact name wins, a single match is taken, and anything ambiguous is
+// refused with the candidates so the picker can be used instead. On failure it
+// returns the HTTP status and the sentence to show.
+func (s *Server) resolveAdd(ctx context.Context, crew store.Crew, req addRequest) (int, int, string) {
+	if req.AppID > 0 {
+		return req.AppID, 0, ""
+	}
+	if id, ok := appIDFromText(req.Term); ok {
+		return id, 0, ""
+	}
+	if req.Term == "" {
+		return 0, http.StatusBadRequest, "Type a game name, a Steam app id, or a store link."
+	}
+
+	results, err := s.cat.Search(ctx, req.Term, crew.Country, crew.Language)
+	if err != nil {
+		s.log.Warn("add entry search", "term", req.Term, "err", err)
+		return 0, http.StatusBadGateway, "Steam search did not answer. Try again in a moment."
+	}
+	if len(results) == 0 {
+		return 0, http.StatusNotFound, fmt.Sprintf("Steam has no game called %q.", req.Term)
+	}
+	want := strings.ToLower(req.Term)
+	for _, r := range results {
+		if strings.ToLower(strings.TrimSpace(r.Name)) == want {
+			return r.AppID, 0, ""
+		}
+	}
+	if len(results) == 1 {
+		return results[0].AppID, 0, ""
+	}
+	names := make([]string, 0, 3)
+	for _, r := range results {
+		if len(names) == 3 {
+			break
+		}
+		names = append(names, r.Name)
+	}
+	return 0, http.StatusConflict, fmt.Sprintf("Several games match %q — pick one: %s.", req.Term, strings.Join(names, ", "))
+}
+
+// handleAddEntry puts a game on the list, by app id or by name.
 func (s *Server) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 	crew, _, sess, user, ok := s.crewContext(w, r)
 	if !ok {
@@ -48,27 +141,39 @@ func (s *Server) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 		s.rejectCSRF(w, r)
 		return
 	}
-	appid, valid := addAppID(w, r)
-	if !valid {
-		s.jsonError(w, r, http.StatusBadRequest, "That game id did not look right.", fmt.Sprintf("/c/%d", crew.ID))
+	back := fmt.Sprintf("/c/%d", crew.ID)
+
+	req, malformed := readAddRequest(w, r)
+	if malformed {
+		s.jsonError(w, r, http.StatusBadRequest, "That game id did not look right.", back)
+		return
+	}
+	appid, status, message := s.resolveAdd(r.Context(), crew, req)
+	if status != 0 {
+		s.jsonError(w, r, status, message, back)
 		return
 	}
 
-	// Fetch metadata first: adding a game Steam will not sell us in this region
-	// is almost always a typo or a region-locked stub.
+	// Fetch metadata first: a game Steam will not sell us in this region is
+	// almost always a typo or a region-locked stub, and adding it anyway would
+	// leave a nameless row on the list.
 	if _, err := s.cat.Game(r.Context(), appid, crew.Country, crew.Language); err != nil {
 		s.log.Warn("add entry metadata", "appid", appid, "err", err)
-		s.jsonError(w, r, http.StatusBadGateway, "Steam has no store page for that game in this region.", fmt.Sprintf("/c/%d", crew.ID))
+		if errors.Is(err, catalog.ErrUnavailable) {
+			s.jsonError(w, r, http.StatusNotFound, "Steam has no store page for that game in this region.", back)
+			return
+		}
+		s.jsonError(w, r, http.StatusBadGateway, "Steam did not answer. Try again in a moment.", back)
 		return
 	}
 
 	if _, err := s.st.AddEntry(crew.ID, appid, user.ID); err != nil {
 		if errors.Is(err, store.ErrExists) {
-			s.jsonError(w, r, http.StatusConflict, "That game is already on the list.", fmt.Sprintf("/c/%d", crew.ID))
+			s.jsonError(w, r, http.StatusConflict, "That game is already on the list.", back)
 			return
 		}
 		s.log.Error("add entry", "err", err)
-		s.jsonError(w, r, http.StatusInternalServerError, "Could not add that game.", fmt.Sprintf("/c/%d", crew.ID))
+		s.jsonError(w, r, http.StatusInternalServerError, "Could not add that game.", back)
 		return
 	}
 
@@ -76,7 +181,7 @@ func (s *Server) handleAddEntry(w http.ResponseWriter, r *http.Request) {
 		s.jsonOK(w, map[string]any{"reload": true})
 		return
 	}
-	s.back(w, r, fmt.Sprintf("/c/%d", crew.ID), "Added to the list.", "ok")
+	s.back(w, r, back, "Added to the list.", "ok")
 }
 
 // handleVote records an up/down vote and returns the fresh summary strip.
