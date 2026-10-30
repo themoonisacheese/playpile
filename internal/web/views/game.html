@@ -8,7 +8,7 @@
     <h1 class="detail-title">{{.Game.Name}}</h1>
     <div class="detail-meta">
       {{if .Game.MetaScore}}<span class="chip chip--meta {{.Entry.MetaClass}}">MC {{.Game.MetaScore}}</span>{{end}}
-      {{if .Game.ReviewDesc}}<span class="chip chip--review {{.Entry.ReviewClass}}">{{.Game.ReviewDesc}} {{.Game.ReviewPct}}% of {{.Game.ReviewTotal}}</span>{{end}}
+      {{if .Game.ReviewDesc}}<span class="chip chip--review {{.Entry.ReviewClass}}" title="{{.Game.ReviewTotal}} Steam reviews">{{.Game.ReviewDesc}} · {{.Game.ReviewPct}}% of {{.Game.ReviewTotalHuman}} reviews</span>{{end}}
       {{if .Game.IsFree}}<span class="chip chip--free">free</span>{{else if .Game.PriceLabel}}<span class="chip chip--price">{{.Game.PriceLabel}}</span>{{end}}
       {{if .Game.Release}}<span class="chip">{{.Game.Release}}</span>{{end}}
     </div>

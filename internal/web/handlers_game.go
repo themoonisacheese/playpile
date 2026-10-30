@@ -58,6 +58,7 @@ func (s *Server) handleGame(w http.ResponseWriter, r *http.Request) {
 	}
 	if found.Reviews != nil {
 		facts.ReviewTotal = found.Reviews.TotalReviews
+		facts.ReviewTotalHuman = humanCount(found.Reviews.TotalReviews)
 	}
 
 	s.render(w, r, "game", http.StatusOK, &gamePageView{
@@ -68,6 +69,19 @@ func (s *Server) handleGame(w http.ResponseWriter, r *http.Request) {
 		Game:     facts,
 		BackHref: fmt.Sprintf("/c/%d", crew.ID),
 	})
+}
+
+// humanCount turns 240937 into "241k" for compact display.
+func humanCount(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fm", float64(n)/1_000_000)
+	case n >= 10_000:
+		return fmt.Sprintf("%dk", n/1000)
+	case n >= 1000:
+		return fmt.Sprintf("%.1fk", float64(n)/1000)
+	}
+	return fmt.Sprintf("%d", n)
 }
 
 // unused placeholder keeps the import meaningful if the page shrinks later.

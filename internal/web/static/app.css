@@ -1580,3 +1580,27 @@ img.detail-cover {
     font-size: 1rem;
   }
 }
+
+/* --- game detail ---------------------------------------------------- */
+.detail-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px 20px;
+  margin: 16px 0 8px;
+}
+
+.detail-side .owners,
+.detail-side .entry-mine {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.detail-side .owners-label {
+  text-align: left;
+}
+
+.detail-side > .summary {
+  flex: 1 1 320px;
+  margin: 0;
+}

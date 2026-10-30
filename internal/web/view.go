@@ -204,22 +204,23 @@ type gamePageView struct {
 
 // GameFacts is the long-form metadata for the detail page.
 type GameFacts struct {
-	Devs        string
-	Pubs        string
-	Genres      string
-	Platforms   string
-	Name        string
-	Cover       string
-	Description string
-	Release     string
-	Short       string
-	IsFree      bool
-	PriceLabel  string
-	MetaScore   int
-	MetaURL     string
-	ReviewDesc  string
-	ReviewPct   int
-	ReviewTotal int
+	Devs             string
+	Pubs             string
+	Genres           string
+	Platforms        string
+	Name             string
+	Cover            string
+	Description      string
+	Release          string
+	Short            string
+	IsFree           bool
+	PriceLabel       string
+	MetaScore        int
+	MetaURL          string
+	ReviewDesc       string
+	ReviewPct        int
+	ReviewTotal      int
+	ReviewTotalHuman string
 }
 
 type joinView struct {
