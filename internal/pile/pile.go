@@ -75,6 +75,12 @@ type Entry struct {
 // Score is the net vote count.
 func (e Entry) Score() int { return e.Up - e.Down }
 
+// Vetoed reports whether anyone has cast a hard no. One hard no is enough:
+// a vetoed game is disqualified from the list that everyone can pick from, is
+// left out of the money totals, and always sinks to the bottom of the page,
+// whatever the chosen sort.
+func (e Entry) Vetoed() bool { return e.Down > 0 }
+
 // Free reports whether the game costs nothing in this region.
 func (e Entry) Free() bool { return e.Game.IsFree || (e.Price != nil && e.Price.Final == 0) }
 
@@ -106,6 +112,7 @@ type Summary struct {
 	MissingForMe int // priced entries the viewer does not own
 	Played       int // entries moved to "played"
 	Upvotes      int // total up-votes cast across the list
+	Vetoed       int // entries disqualified by at least one hard no
 
 	MemberCount int
 }
@@ -147,6 +154,11 @@ func (p *Pile) Counts() map[string]int {
 			continue
 		}
 		counts[FilterActive]++
+		if e.Vetoed() {
+			// A hard no disqualifies the game: it is not something to buy,
+			// and it is not something you are still campaigning for.
+			continue
+		}
 		if e.OwnedByEverybody() {
 			counts[FilterReady]++
 		}
@@ -280,6 +292,13 @@ func summarise(entries []Entry, members []store.Member, meID int64) Summary {
 		if e.Status == store.StatusPlayed {
 			s.Played++
 		}
+		// A vetoed game is disqualified outright: it stays on the page, but it
+		// counts for nothing — not for the totals, not for ready-to-play, not
+		// for what you would have to buy.
+		if e.Vetoed() {
+			s.Vetoed++
+			continue
+		}
 		s.Upvotes += e.Up
 		if e.OwnedByEverybody() {
 			s.Ready++
@@ -318,15 +337,15 @@ func applyFilter(entries []Entry, filter string) []Entry {
 				continue
 			}
 		case FilterMissing:
-			if e.Status == store.StatusPlayed || e.CostForMe <= 0 {
+			if e.Status == store.StatusPlayed || e.Vetoed() || e.CostForMe <= 0 {
 				continue
 			}
 		case FilterReady:
-			if e.Status == store.StatusPlayed || !e.OwnedByEverybody() {
+			if e.Status == store.StatusPlayed || e.Vetoed() || !e.OwnedByEverybody() {
 				continue
 			}
 		case FilterLiked:
-			if e.Status == store.StatusPlayed || e.MyVote <= 0 {
+			if e.Status == store.StatusPlayed || e.Vetoed() || e.MyVote <= 0 {
 				continue
 			}
 		default:
@@ -343,6 +362,11 @@ func sortEntries(entries []Entry, order string) {
 	byName := func(a, b Entry) bool { return strings.ToLower(a.Game.Name) < strings.ToLower(b.Game.Name) }
 	sort.SliceStable(entries, func(i, j int) bool {
 		a, b := entries[i], entries[j]
+		// A hard no disqualifies a game, so disqualified rows sink to the
+		// bottom of the list whatever the chosen order.
+		if a.Vetoed() != b.Vetoed() {
+			return !a.Vetoed()
+		}
 		switch order {
 		case SortAdded:
 			return a.AddedAt > b.AddedAt

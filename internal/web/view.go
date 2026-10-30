@@ -64,6 +64,7 @@ type summaryVM struct {
 	Unpriced     int
 	OtherMoney   int
 	MissingForMe int
+	Vetoed       int
 	Members      int
 	Note         string
 }
@@ -93,6 +94,10 @@ type entryVM struct {
 	MyVote    int
 	Up        int
 	Down      int
+	Vetoed    bool // disqualified by at least one hard no
+	// VetoedStart marks the first vetoed row, so the page can draw one
+	// "disqualified" divider above the block instead of one per row.
+	VetoedStart bool
 
 	MetaScore int
 	MetaClass string
@@ -259,6 +264,7 @@ func (s *Server) summaryVM(p *pile.Pile) summaryVM {
 		Unpriced:     sum.Unpriced,
 		OtherMoney:   sum.OtherMoney,
 		MissingForMe: sum.MissingForMe,
+		Vetoed:       sum.Vetoed,
 		Members:      sum.MemberCount,
 	}
 
@@ -272,6 +278,9 @@ func (s *Server) summaryVM(p *pile.Pile) summaryVM {
 	if sum.OtherMoney > 0 {
 		notes = append(notes, fmt.Sprintf("%d priced in another currency", sum.OtherMoney))
 	}
+	if sum.Vetoed > 0 {
+		notes = append(notes, fmt.Sprintf("%d disqualified by a hard no", sum.Vetoed))
+	}
 	if len(notes) > 0 {
 		vm.Note = "Totals cover " + strings.Join(notes, " · ")
 	}
@@ -281,8 +290,14 @@ func (s *Server) summaryVM(p *pile.Pile) summaryVM {
 // entryVMs prepares every row for rendering.
 func (s *Server) entryVMs(p *pile.Pile, entries []pile.Entry, csrf string) []entryVM {
 	out := make([]entryVM, 0, len(entries))
+	seenVeto := false
 	for _, e := range entries {
-		out = append(out, s.entryVM(p, e, csrf))
+		vm := s.entryVM(p, e, csrf)
+		if vm.Vetoed && !seenVeto {
+			seenVeto = true
+			vm.VetoedStart = true
+		}
+		out = append(out, vm)
 	}
 	return out
 }
@@ -307,6 +322,7 @@ func (s *Server) entryVM(p *pile.Pile, e pile.Entry, csrf string) entryVM {
 		MyVote:      e.MyVote,
 		Up:          e.Up,
 		Down:        e.Down,
+		Vetoed:      e.Vetoed(),
 		ComingSoon:  e.Game.ComingSoon,
 		Played:      e.Status == store.StatusPlayed,
 		Available:   e.Available,

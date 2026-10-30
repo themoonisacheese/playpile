@@ -127,6 +127,7 @@ func (s *Server) handleVote(w http.ResponseWriter, r *http.Request) {
 		"down":         entry.Down,
 		"score":        entry.Score,
 		"mine":         entry.MyVote,
+		"vetoed":       entry.Vetoed,
 		"summary_html": s.fragment("summary", view),
 	})
 }

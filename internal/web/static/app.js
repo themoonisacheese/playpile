@@ -39,6 +39,28 @@
     }
   }
 
+  /* A hard no disqualifies a row: mirror the server's is-vetoed class and
+   * the chip without reloading. The row only changes position on reload. */
+  function setVetoed(entry, vetoed, downCount) {
+    if (!entry) return;
+    entry.classList.toggle("is-vetoed", !!vetoed);
+    var meta = entry.querySelector(".entry-meta");
+    if (!meta) return;
+    var chip = meta.querySelector(".chip--veto");
+    if (vetoed) {
+      if (!chip) {
+        chip = document.createElement("span");
+        chip.className = "chip chip--veto";
+        chip.setAttribute("title", "a hard no disqualifies a game");
+        meta.appendChild(chip);
+      }
+      chip.textContent =
+        (typeof downCount === "number" ? downCount : "") + " hard no — out";
+    } else if (chip) {
+      chip.remove();
+    }
+  }
+
   /* ---------------------------------------------------------------
    * Apply a JSON update response to the page: summary, vote score,
    * owners, "mine" line, or a full reload.
@@ -80,6 +102,9 @@
       if (up) up.setAttribute("aria-pressed", mine === 1 ? "true" : "false");
       if (down) {
         down.setAttribute("aria-pressed", mine === -1 ? "true" : "false");
+      }
+      if (typeof data.vetoed !== "undefined") {
+        setVetoed(entry, data.vetoed, data.down);
       }
       recognised = true;
     }

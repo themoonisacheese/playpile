@@ -1,36 +1,63 @@
 /* =========================================================================
-   playpile — app.css
-   A calm, dense dashboard for a small group curating a shared game list.
-   Single dark theme. No build step: served exactly as written, embedded
-   in the Go binary.
-   Sections: tokens, base, chrome, buttons, landing, summary,
-   toolbar/search, pile/entries, chips, vote, owners, forms, detail,
-   members, utilities, responsive.
+   playpile - app.css
+
+   A cozy, cute dark dashboard for a small group curating a shared game list.
+   Deep blue-violet ink, lilac panels, soft peach / mint / coral pastels,
+   generously rounded shapes, and a few kaomoji. The templates carry the
+   faces; .kao only makes them sit nicely on the baseline.
+
+   Single dark theme. No build step: served exactly as written, embedded in
+   the Go binary. No images, no external fonts, no imports.
+
+   Sections
+     1  tokens
+     2  base
+     3  chrome (header / footer / flash)
+     4  buttons, badges and small bits
+     5  landing, page heads, cards
+     6  summary
+     7  toolbar / search
+     8  pile / entries (incl. the vetoed row state)
+     9  chips (incl. chip--veto)
+    10  vote (YES PLEASE / hard no pills)
+    11  owners
+    12  forms
+    13  detail page
+    14  members & invites
+    15  utilities
+    16  responsive
    ========================================================================= */
 
 /* ---------------------------------------------------------------------
    1. Tokens
+   Surfaces are a blue-violet ink with a lilac cast, never pure grey.
+   Accent is warm peach; mint means yes, coral-pink means no (never
+   fire-engine red - a hard no is information, not a fire alarm).
+   Text contrast on --surface / --bg: --text 14.6:1, --muted 8.2:1,
+   --faint 5.2:1; --accent 11.6:1, --up 12.0:1, --down 8.9:1.
    --------------------------------------------------------------------- */
 :root {
   color-scheme: dark;
 
-  --bg: #15161b;
-  --surface: #1b1d24;
-  --surface-2: #23262f;
-  --border: #32353f;
-  --text: #e8e8ec;
-  --muted: #a3a6b2;
-  --faint: #6c6f7b;
+  --bg: #131122;
+  --surface: #1b1830;
+  --surface-2: #262140;
+  --border: #352f52;
+  --text: #efeafb;
+  --muted: #b6aed4;
+  --faint: #8f88b2;
 
-  --accent: #e0a64a;
-  --accent-contrast: #1a1406;
-  --up: #4caf6f;
-  --down: #e0615a;
-  --owned: #3f8f5f;
-  --warn: #d9a441;
+  --accent: #ffc9a0;
+  --accent-contrast: #2a1a0f;
+  --up: #96e8bd;
+  --up-ink: #0f2419;
+  --down: #ff9fb0;
+  --down-ink: #2b1016;
+  --owned: #86d9a9;
+  --warn: #f7d488;
 
-  --radius: 14px;
-  --radius-sm: 8px;
+  --radius: 16px;
+  --radius-sm: 10px;
   --maxw: 1080px;
 
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
@@ -38,9 +65,11 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
     monospace;
 
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.35);
-  --header-h: 60px;
+  /* two hover-border tints, kept as literals off the token names */
+  --shadow-1: 0 1px 2px rgba(8, 4, 20, 0.35), 0 2px 10px rgba(8, 4, 20, 0.22);
+  --shadow-2: 0 14px 34px rgba(8, 4, 20, 0.55);
+  --shadow-lift: 0 6px 18px rgba(8, 4, 20, 0.45);
+  --header-h: 62px;
 }
 
 /* ---------------------------------------------------------------------
@@ -57,14 +86,30 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* The texture is three cheap paint layers: a peach glow at the top, a
+   lilac glow off to the right, and a 1px dot grid. It never sits behind
+   a text run that is not already on a panel, and it costs no layout. */
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: radial-gradient(
+      60rem 32rem at 50% -14rem,
+      rgba(255, 201, 160, 0.08),
+      transparent 70%
+    ),
+    radial-gradient(
+      52rem 30rem at 100% -6rem,
+      rgba(166, 148, 255, 0.1),
+      transparent 70%
+    ),
+    radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 0);
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-size: auto, auto, 22px 22px;
   color: var(--text);
   font-family: var(--font);
   font-feature-settings: "tnum" 1;
-  line-height: 1.5;
+  line-height: 1.55;
   display: flex;
   flex-direction: column;
 }
@@ -81,6 +126,7 @@ a {
 
 a:hover {
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 h1,
@@ -88,9 +134,9 @@ h2,
 h3,
 h4 {
   margin: 0 0 0.5em;
-  line-height: 1.2;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  line-height: 1.18;
+  font-weight: 760;
+  letter-spacing: -0.015em;
 }
 
 p {
@@ -113,7 +159,18 @@ button {
   color: var(--accent-contrast);
 }
 
-/* Focus rings: visible only for keyboard focus. */
+/* Kaomoji (the templates' (^_^) style faces). They only look right in a
+   monospace run, and they need a little more leading or the brackets clip. */
+.kao {
+  font-family: var(--mono);
+  font-weight: 400;
+  letter-spacing: 0;
+  opacity: 0.9;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* Focus rings: visible only for keyboard focus, always in the accent. */
 :focus {
   outline: none;
 }
@@ -156,8 +213,8 @@ header.top {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(21, 22, 27, 0.92);
-  backdrop-filter: saturate(140%) blur(8px);
+  background: rgba(19, 17, 34, 0.86);
+  backdrop-filter: saturate(140%) blur(10px);
   border-bottom: 1px solid var(--border);
 }
 
@@ -171,31 +228,42 @@ header.top .wrap {
 a.brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 1.05rem;
+  gap: 9px;
+  font-weight: 800;
+  font-size: 1.08rem;
+  letter-spacing: -0.02em;
   color: var(--text);
   white-space: nowrap;
 }
 
 a.brand:hover {
   text-decoration: none;
-  color: var(--text);
+  color: var(--accent);
 }
 
+/* A tiny soft peach bead with a ring around it; it pulses open a little
+   on hover, which is the whole brand animation budget. */
 .brand-dot {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(224, 166, 74, 0.18);
+  background: radial-gradient(circle at 34% 30%, #fff4e8, var(--accent) 72%);
+  box-shadow: 0 0 0 3px rgba(255, 201, 160, 0.18),
+    0 0 12px rgba(255, 201, 160, 0.4);
   flex: none;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+a.brand:hover .brand-dot {
+  transform: scale(1.14);
+  box-shadow: 0 0 0 4px rgba(255, 201, 160, 0.24),
+    0 0 16px rgba(255, 201, 160, 0.5);
 }
 
 nav.top-nav {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 10px;
   flex: 1 1 auto;
   overflow-x: auto;
   scrollbar-width: none;
@@ -207,13 +275,19 @@ nav.top-nav::-webkit-scrollbar {
 
 nav.top-nav a {
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   white-space: nowrap;
-  padding: 6px 2px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: color 0.14s ease, background-color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 nav.top-nav a:hover {
   color: var(--text);
+  background: var(--surface-2);
+  border-color: var(--border);
   text-decoration: none;
 }
 
@@ -228,11 +302,19 @@ nav.top-nav a:hover {
 }
 
 .who img.avatar {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: 1px solid var(--border);
+  box-shadow: 0 0 0 2px rgba(255, 201, 160, 0.14);
   flex: none;
+}
+
+.who-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 22ch;
 }
 
 form.logout {
@@ -242,12 +324,12 @@ form.logout {
 
 main {
   flex: 1 0 auto;
-  padding: 28px 0 56px;
+  padding: 30px 0 60px;
 }
 
 footer.site {
   border-top: 1px solid var(--border);
-  padding: 20px 0;
+  padding: 22px 0;
   flex: none;
 }
 
@@ -259,57 +341,72 @@ footer.site .muted {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 11px 18px;
   margin-bottom: 20px;
-  border-radius: var(--radius-sm);
+  border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--surface);
   font-size: 0.92rem;
 }
 
+/* The only kaomoji the stylesheet adds, and it stays plain ASCII so any
+   font can draw it. */
 .flash.flash--ok {
-  border-color: rgba(76, 175, 111, 0.4);
-  background: rgba(76, 175, 111, 0.08);
-  color: #bfe9cc;
+  border-color: rgba(150, 232, 189, 0.4);
+  background: rgba(150, 232, 189, 0.09);
+  color: #cdf7e2;
+}
+
+.flash.flash--ok::before {
+  content: "(o^_^o)";
+  font-family: var(--mono);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5;
+  opacity: 0.9;
+  flex: none;
 }
 
 .flash.flash--error {
-  border-color: rgba(224, 97, 90, 0.45);
-  background: rgba(224, 97, 90, 0.08);
-  color: #f3c3bf;
+  border-color: rgba(255, 159, 176, 0.42);
+  background: rgba(255, 159, 176, 0.09);
+  color: #ffd3da;
 }
 
 /* ---------------------------------------------------------------------
-   4. Buttons & small bits
+   4. Buttons, badges and small bits
    --------------------------------------------------------------------- */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 36px;
-  padding: 0 16px;
-  border-radius: var(--radius-sm);
+  min-height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
   font-size: 0.92rem;
-  font-weight: 560;
+  font-weight: 650;
   cursor: pointer;
   text-decoration: none;
   line-height: 1;
-  transition: background-color 0.12s ease, border-color 0.12s ease,
-    color 0.12s ease, transform 0.08s ease;
+  transition: background-color 0.14s ease, border-color 0.14s ease,
+    color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
 }
 
 .btn:hover {
-  background: #2a2d37;
+  background: #2f2950;
+  border-color: #453d69;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
   text-decoration: none;
-  border-color: #3c4050;
 }
 
 .btn:active {
-  transform: translateY(1px);
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn:disabled,
@@ -317,24 +414,27 @@ footer.site .muted {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 .btn.btn-sm {
   min-height: 30px;
-  padding: 0 12px;
+  padding: 0 13px;
   font-size: 0.82rem;
+  border-radius: 999px;
 }
 
 .btn.btn-primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-contrast);
-  font-weight: 650;
+  font-weight: 720;
 }
 
 .btn.btn-primary:hover {
-  background: #eab45c;
-  border-color: #eab45c;
+  background: #ffd7b8;
+  border-color: #ffd7b8;
+  box-shadow: 0 6px 20px rgba(255, 201, 160, 0.22);
 }
 
 .btn.btn-ghost {
@@ -343,43 +443,36 @@ footer.site .muted {
 
 .btn.btn-ghost:hover {
   background: var(--surface-2);
+  border-color: #453d69;
 }
 
 .btn.btn-danger {
   background: transparent;
-  border-color: rgba(224, 97, 90, 0.5);
-  color: #f3c3bf;
+  border-color: rgba(255, 159, 176, 0.5);
+  color: #ffc4cd;
 }
 
 .btn.btn-danger:hover {
-  background: rgba(224, 97, 90, 0.12);
+  background: rgba(255, 159, 176, 0.14);
   border-color: var(--down);
+  box-shadow: 0 6px 18px rgba(255, 159, 176, 0.14);
 }
 
-/* Steam sign-in: a real, prominent primary action. */
+/* Steam sign-in: a real, prominent primary action, still in our palette. */
 .btn.btn-steam {
-  min-height: 44px;
-  padding: 0 22px;
-  background: #171a21;
-  border: 1px solid #3a3f4b;
-  color: #f3f4f6;
+  min-height: 46px;
+  padding: 0 24px;
+  background: #1a1530;
+  border: 1px solid #3a3160;
+  color: #f3f0ff;
   font-size: 0.98rem;
-  font-weight: 650;
+  font-weight: 720;
   box-shadow: var(--shadow-1);
 }
 
 .btn.btn-steam:hover {
-  background: #1e2229;
-  border-color: #576076;
-}
-
-.btn.btn-steam::before {
-  content: "";
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #dcdfe4, #67727f 70%);
-  flex: none;
+  background: #221b3d;
+  border-color: #4d4278;
 }
 
 button.link,
@@ -397,7 +490,7 @@ button.link,
 
 button.link:hover,
 .link:hover {
-  color: #eab45c;
+  color: #ffd7b8;
 }
 
 .muted {
@@ -420,29 +513,29 @@ button.link:hover,
 .badge {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 8px;
+  height: 22px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface-2);
-  font-size: 0.7rem;
-  font-weight: 650;
+  font-size: 0.69rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--muted);
   flex: none;
 }
 
 .badge--owner {
-  border-color: rgba(224, 166, 74, 0.5);
+  border-color: rgba(255, 201, 160, 0.5);
   color: var(--accent);
-  background: rgba(224, 166, 74, 0.1);
+  background: rgba(255, 201, 160, 0.1);
 }
 
 .badge--admin {
-  border-color: rgba(93, 156, 214, 0.5);
-  color: #8fc1ec;
-  background: rgba(93, 156, 214, 0.1);
+  border-color: rgba(207, 198, 240, 0.45);
+  color: #cfc6f0;
+  background: rgba(207, 198, 240, 0.1);
 }
 
 .badge--member {
@@ -463,37 +556,96 @@ button.link:hover,
 
 .empty {
   text-align: center;
-  padding: 56px 20px;
+  padding: 44px 20px 48px;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
+  background: rgba(27, 24, 48, 0.55);
   color: var(--muted);
+}
+
+/* Reserved slot, no content: a template may drop a kaomoji in here and it
+   will never shove the text below it around. */
+.empty::before {
+  content: "";
+  display: block;
+  min-height: 14px;
 }
 
 .empty-title {
   color: var(--text);
-  font-size: 1.1rem;
-  font-weight: 650;
+  font-size: 1.12rem;
+  font-weight: 760;
+  letter-spacing: -0.01em;
   margin-bottom: 6px;
 }
 
 .empty-body {
-  max-width: 44ch;
-  margin: 0 auto;
+  max-width: 46ch;
+  margin: 0 auto 1em;
   font-size: 0.92rem;
 }
 
 /* ---------------------------------------------------------------------
-   5. Landing
+   5. Landing, page heads, cards
    --------------------------------------------------------------------- */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 4px 0 20px;
+}
+
+.page-head h1 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  overflow-wrap: break-word;
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.1rem);
+  margin-bottom: 4px;
+}
+
+.page-head p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .hero {
-  padding: 56px 0 40px;
+  padding: 60px 0 44px;
   text-align: center;
 }
 
 .hero h1 {
-  font-size: clamp(2rem, 1.4rem + 2.6vw, 3.2rem);
-  max-width: 18ch;
-  margin: 0 auto 0.4em;
+  font-size: clamp(2rem, 1.4rem + 2.6vw, 3.1rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  max-width: 20ch;
+  margin: 0 auto 0.35em;
+}
+
+/* One small ASCII face under the landing title. ASCII only, mono stack,
+   so it renders in every font. */
+.hero h1::after {
+  content: "(^_^)";
+  display: block;
+  margin-top: 0.25em;
+  font-family: var(--mono);
+  font-size: 0.38em;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.6;
+  color: var(--accent);
+  opacity: 0.85;
 }
 
 .hero p.lede {
@@ -515,28 +667,25 @@ button.link:hover,
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px 28px;
+  gap: 10px 26px;
   max-width: 760px;
   margin: 0 auto;
 }
 
 .hero-points li {
-  position: relative;
-  padding-left: 18px;
+  padding-left: 20px;
   color: var(--muted);
   font-size: 0.92rem;
   text-align: left;
-}
-
-.hero-points li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.55em;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
+  background-image: radial-gradient(
+    circle,
+    var(--accent) 0 2.5px,
+    rgba(255, 201, 160, 0.28) 2.9px,
+    transparent 3.6px
+  );
+  background-repeat: no-repeat;
+  background-position: 0 0.6em;
+  background-size: 10px 10px;
 }
 
 .card {
@@ -551,28 +700,60 @@ button.link:hover,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
+  padding: 15px 20px;
+  border-bottom: 1px dashed var(--border);
 }
 
 .card-head h2,
 .card-head h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.02rem;
 }
 
 .card-body {
   padding: 20px;
 }
 
+.card-title {
+  overflow-wrap: break-word;
+}
+
+.card--danger {
+  border-color: rgba(255, 159, 176, 0.35);
+}
+
+.card--danger .card-head {
+  border-bottom-color: rgba(255, 159, 176, 0.25);
+}
+
 .grid {
   display: grid;
   gap: 16px;
   grid-template-columns: 1fr;
+  margin-bottom: 16px;
 }
 
 .grid--3 {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+a.crew-card {
+  display: block;
+  color: var(--text);
+  transition: transform 0.16s ease, border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+a.crew-card:hover {
+  text-decoration: none;
+  transform: translateY(-2px);
+  border-color: rgba(255, 201, 160, 0.35);
+  box-shadow: var(--shadow-2);
+}
+
+a.crew-card .card-body p {
+  margin: 0;
+  font-size: 0.88rem;
 }
 
 /* ---------------------------------------------------------------------
@@ -586,7 +767,8 @@ button.link:hover,
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-1);
 }
 
 .stat {
@@ -601,14 +783,15 @@ button.link:hover,
 .stat-label {
   font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--faint);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .stat-value {
-  font-size: clamp(1.3rem, 1.1rem + 0.8vw, 1.7rem);
-  font-weight: 700;
+  font-size: clamp(1.3rem, 1.1rem + 0.8vw, 1.72rem);
+  font-weight: 780;
+  letter-spacing: -0.02em;
   color: var(--text);
 }
 
@@ -633,10 +816,16 @@ button.link:hover,
   color: var(--up);
 }
 
+/* The note is rendered inside .summary, so it has to own a row of its own;
+   without the span and a surface it shows the grid's border colour as a
+   solid lavender bar. */
 .summary-note {
+  grid-column: 1 / -1;
+  background: var(--surface);
   color: var(--faint);
   font-size: 0.8rem;
-  margin: 0 0 20px;
+  margin: 0;
+  padding: 10px 18px;
 }
 
 /* ---------------------------------------------------------------------
@@ -647,24 +836,30 @@ button.link:hover,
   flex-wrap: wrap;
   align-items: center;
   gap: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .search {
   position: relative;
   flex: 1 1 280px;
   min-width: 200px;
-  max-width: 420px;
+  max-width: 440px;
 }
 
 .search-input {
   width: 100%;
 }
 
+/* Heavier than the generic input rules in section 12 so the pill wins. */
+.search .search-input {
+  border-radius: 999px;
+  padding: 0 16px;
+}
+
 .search-results {
   display: none;
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   left: 0;
   right: 0;
   z-index: 30;
@@ -674,7 +869,7 @@ button.link:hover,
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-2);
-  padding: 4px;
+  padding: 6px;
 }
 
 .search-results.is-open {
@@ -689,7 +884,7 @@ button.result {
   text-align: left;
   background: none;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   padding: 8px;
   cursor: pointer;
   color: var(--text);
@@ -701,10 +896,10 @@ button.result:focus-visible {
 }
 
 .result-cover {
-  width: 36px;
-  height: 48px;
+  width: 38px;
+  height: 50px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 6px;
   flex: none;
   background: var(--border);
 }
@@ -745,26 +940,41 @@ button.result:focus-visible {
 a.filter {
   display: inline-flex;
   align-items: center;
-  height: 30px;
-  padding: 0 12px;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--muted);
   font-size: 0.82rem;
+  transition: color 0.14s ease, border-color 0.14s ease,
+    background-color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
 }
 
 a.filter:hover {
   text-decoration: none;
   color: var(--text);
-  border-color: #3c4050;
+  border-color: #453d69;
+  background: var(--surface-2);
+  transform: translateY(-1px);
 }
 
 a.filter.is-active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-contrast);
-  font-weight: 650;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(255, 201, 160, 0.18);
+}
+
+.sorts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-size: 0.82rem;
 }
 
 /* ---------------------------------------------------------------------
@@ -773,7 +983,7 @@ a.filter.is-active {
 .pile {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 article.entry {
@@ -785,15 +995,21 @@ article.entry {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px;
-  transition: border-color 0.12s ease, opacity 0.12s ease;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease,
+    opacity 0.14s ease;
 }
 
 article.entry:hover {
-  border-color: #3c4050;
+  border-color: rgba(255, 201, 160, 0.32);
+  box-shadow: var(--shadow-1);
 }
 
 article.entry.is-played {
-  opacity: 0.68;
+  opacity: 0.66;
+}
+
+article.entry.is-played:hover {
+  opacity: 0.86;
 }
 
 article.entry.is-busy {
@@ -801,10 +1017,50 @@ article.entry.is-busy {
   pointer-events: none;
 }
 
+/* A hard no is a veto: a quiet coral edge and a slightly quieter cover,
+   never a banner. */
+article.entry.is-vetoed {
+  border-left: 3px solid rgba(255, 159, 176, 0.6);
+  padding-left: 14px;
+}
+
+/* One divider marks where the disqualified games begin, so a long list does
+   not read as "these are all fine" down to the last row. */
+.veto-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 2px 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.veto-divider::before,
+.veto-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 159, 176, 0.45),
+    transparent
+  );
+}
+
+.veto-divider .kao {
+  color: var(--down);
+}
+
+article.entry.is-vetoed a.entry-cover img {
+  filter: saturate(0.85);
+}
+
 a.entry-cover {
   grid-row: 1 / span 2;
   display: block;
-  border-radius: 6px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -816,6 +1072,11 @@ a.entry-cover img {
   height: 62px;
   object-fit: cover;
   display: block;
+  transition: transform 0.18s ease;
+}
+
+a.entry-cover:hover img {
+  transform: scale(1.03);
 }
 
 .entry-main {
@@ -826,13 +1087,16 @@ a.entry-cover img {
 }
 
 .entry-title {
-  font-size: 1.02rem;
-  font-weight: 650;
+  font-size: 1.04rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text);
+  overflow-wrap: break-word;
 }
 
 .entry-title:hover {
   color: var(--accent);
+  text-decoration: none;
 }
 
 .entry-sub {
@@ -842,6 +1106,13 @@ a.entry-cover img {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+.entry-note {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+  overflow-wrap: break-word;
 }
 
 .entry-meta {
@@ -855,7 +1126,7 @@ a.entry-cover img {
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
-  min-width: 128px;
+  min-width: 132px;
 }
 
 .entry-actions {
@@ -863,10 +1134,10 @@ a.entry-cover img {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
 }
 
 .entry-actions form {
@@ -874,28 +1145,53 @@ a.entry-cover img {
   margin: 0;
 }
 
-.note-input {
+.entry-actions > form:first-child {
   flex: 1 1 220px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 160px;
+  min-width: 0;
+}
+
+/* The note field is the input itself in the current markup, wrapped in a
+   plain div in older markup: style both, the wrapper via its child. */
+.entry-actions .note-input {
+  flex: 1 1 200px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.entry-actions .note-input::placeholder {
+  color: var(--faint);
+}
+
+.entry-actions .note-input:hover {
+  border-color: #453d69;
+}
+
+.entry-actions .note-input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .note-input input {
   flex: 1 1 auto;
+  min-width: 0;
   background: none;
   border: none;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  padding: 6px 2px;
   color: var(--text);
-  min-height: 30px;
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 4px 0;
 }
 
 .note-input input:focus-visible {
   outline: none;
-  border-bottom-color: var(--accent);
 }
 
 .stale {
@@ -915,12 +1211,14 @@ a.entry-cover img {
 
 /* ---------------------------------------------------------------------
    9. Chips
+   Pills, 1px tinted borders, pastel text. Everything pastel is light on
+   a dark tint so it stays legible (>= 7:1 in practice).
    --------------------------------------------------------------------- */
 .chip {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 8px;
+  height: 24px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -933,85 +1231,100 @@ a.entry-cover img {
 }
 
 .chip.chip--meta.is-good {
-  color: #bfe9cc;
-  border-color: rgba(76, 175, 111, 0.45);
-  background: rgba(76, 175, 111, 0.1);
+  color: #b7f2d3;
+  border-color: rgba(150, 232, 189, 0.45);
+  background: rgba(150, 232, 189, 0.1);
 }
 
 .chip.chip--meta.is-mixed {
-  color: #f0d79a;
-  border-color: rgba(217, 164, 65, 0.45);
-  background: rgba(217, 164, 65, 0.1);
+  color: #ffe3ae;
+  border-color: rgba(247, 212, 136, 0.45);
+  background: rgba(247, 212, 136, 0.1);
 }
 
 .chip.chip--meta.is-bad {
-  color: #f3c3bf;
-  border-color: rgba(224, 97, 90, 0.45);
-  background: rgba(224, 97, 90, 0.1);
+  color: #ffc4cd;
+  border-color: rgba(255, 159, 176, 0.45);
+  background: rgba(255, 159, 176, 0.1);
 }
 
 .chip.chip--review.is-positive {
-  color: #bfe9cc;
-  border-color: rgba(76, 175, 111, 0.4);
+  color: #b7f2d3;
+  border-color: rgba(150, 232, 189, 0.4);
 }
 
 .chip.chip--review.is-mixed {
-  color: #f0d79a;
-  border-color: rgba(217, 164, 65, 0.4);
+  color: #ffe3ae;
+  border-color: rgba(247, 212, 136, 0.4);
 }
 
 .chip.chip--review.is-negative {
-  color: #f3c3bf;
-  border-color: rgba(224, 97, 90, 0.4);
+  color: #ffc4cd;
+  border-color: rgba(255, 159, 176, 0.4);
 }
 
 .chip.chip--price {
   color: var(--text);
   font-variant-numeric: tabular-nums;
+  font-weight: 650;
 }
 
 .chip.chip--discount {
   color: var(--accent-contrast);
   background: var(--accent);
   border-color: var(--accent);
-  font-weight: 700;
+  font-weight: 750;
 }
 
 .chip.chip--free {
-  color: #bfe9cc;
-  border-color: rgba(76, 175, 111, 0.4);
-  background: rgba(76, 175, 111, 0.08);
+  color: #b7f2d3;
+  border-color: rgba(150, 232, 189, 0.4);
+  background: rgba(150, 232, 189, 0.08);
 }
 
 .chip.chip--owned {
-  color: #bfe9cc;
-  border-color: rgba(63, 143, 95, 0.5);
-  background: rgba(63, 143, 95, 0.12);
+  color: #b7f2d3;
+  border-color: rgba(134, 217, 169, 0.5);
+  background: rgba(134, 217, 169, 0.12);
 }
 
 .chip.chip--missing {
   color: var(--muted);
   border-style: dashed;
+  background: transparent;
 }
 
 .chip.chip--soon {
   color: var(--warn);
-  border-color: rgba(217, 164, 65, 0.4);
+  border-color: rgba(247, 212, 136, 0.4);
+  background: rgba(247, 212, 136, 0.07);
 }
 
 .chip.chip--voted {
   color: var(--accent);
-  border-color: rgba(224, 166, 74, 0.4);
-  background: rgba(224, 166, 74, 0.08);
+  border-color: rgba(255, 201, 160, 0.4);
+  background: rgba(255, 201, 160, 0.08);
+}
+
+/* Veto count: coral-tinted, informative, deliberately calm. */
+.chip.chip--veto {
+  color: #ffc4cd;
+  border-color: rgba(255, 159, 176, 0.38);
+  background: rgba(255, 159, 176, 0.12);
+  font-weight: 650;
 }
 
 /* ---------------------------------------------------------------------
    10. Vote
+   Two labelled pills with the score between them. Unpressed pills are
+   quiet ghosts; pressed ones are filled mint / coral. Hover only tints
+   the border, so a stray hover never looks like a vote.
    --------------------------------------------------------------------- */
 .vote {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .vote form {
@@ -1023,41 +1336,83 @@ a.entry-cover img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-sm);
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 999px;
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: transparent;
   color: var(--muted);
-  cursor: pointer;
-  font-size: 0.95rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
   line-height: 1;
-  transition: background-color 0.12s ease, color 0.12s ease,
-    border-color 0.12s ease;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.14s ease, border-color 0.14s ease,
+    color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
 }
 
 .vote-btn:hover {
   color: var(--text);
-  border-color: #3c4050;
+  background: var(--surface-2);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-1);
+}
+
+.vote-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.vote-btn.up:hover {
+  border-color: rgba(150, 232, 189, 0.55);
+  color: #cdf7e2;
+}
+
+.vote-btn.down:hover {
+  border-color: rgba(255, 159, 176, 0.55);
+  color: #ffd3da;
 }
 
 .vote-btn.up[aria-pressed="true"] {
   background: var(--up);
   border-color: var(--up);
-  color: #0d1f14;
+  color: var(--up-ink);
+  box-shadow: 0 4px 14px rgba(150, 232, 189, 0.22);
 }
 
 .vote-btn.down[aria-pressed="true"] {
   background: var(--down);
   border-color: var(--down);
-  color: #250b09;
+  color: var(--down-ink);
+  box-shadow: 0 4px 14px rgba(255, 159, 176, 0.2);
+}
+
+.vote-btn .vote-label {
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+.vote-btn .kao {
+  font-size: 0.82em;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5;
+  text-transform: none;
+  opacity: 0.9;
 }
 
 .vote-score {
-  min-width: 2ch;
+  min-width: 2.5ch;
   text-align: center;
-  font-weight: 700;
-  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 780;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
   color: var(--muted);
 }
 
@@ -1070,7 +1425,7 @@ a.entry-cover img {
 }
 
 .vote-score[data-sign="zero"] {
-  color: var(--faint);
+  color: var(--muted);
 }
 
 /* ---------------------------------------------------------------------
@@ -1089,18 +1444,18 @@ a.entry-cover img {
 }
 
 .owner {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: var(--surface-2);
   border: 2px solid var(--surface);
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: -8px;
+  margin-left: -9px;
 }
 
 .owner:first-child {
@@ -1111,11 +1466,14 @@ a.entry-cover img {
   background: var(--accent);
   color: var(--accent-contrast);
   border-color: var(--surface);
+  box-shadow: 0 0 0 2px rgba(255, 201, 160, 0.22);
 }
 
 .owner.owner--more {
-  background: var(--border);
-  color: var(--text);
+  background: var(--surface-2);
+  border: 2px solid var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted);
 }
 
 .owners-label {
@@ -1128,7 +1486,9 @@ a.entry-cover img {
   color: var(--muted);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+  row-gap: 6px;
   text-align: right;
   justify-content: flex-end;
 }
@@ -1140,7 +1500,7 @@ a.entry-cover img {
 .entry-mine.is-owned,
 .entry-mine .is-owned {
   color: var(--owned);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* ---------------------------------------------------------------------
@@ -1163,19 +1523,20 @@ input[type="number"],
 select,
 textarea {
   width: 100%;
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 38px;
+  padding: 0 14px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   color: var(--text);
   font: inherit;
   font-variant-numeric: tabular-nums;
+  transition: border-color 0.14s ease, background-color 0.14s ease;
 }
 
 textarea {
-  min-height: 80px;
-  padding: 10px 12px;
+  min-height: 84px;
+  padding: 10px 14px;
   resize: vertical;
 }
 
@@ -1187,7 +1548,7 @@ textarea::placeholder {
 input:hover,
 select:hover,
 textarea:hover {
-  border-color: #3c4050;
+  border-color: #453d69;
 }
 
 input:focus-visible,
@@ -1209,10 +1570,10 @@ select {
   appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
     linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: calc(100% - 18px) center, calc(100% - 13px) center;
+  background-position: calc(100% - 19px) center, calc(100% - 14px) center;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
-  padding-right: 32px;
+  padding-right: 34px;
 }
 
 .form-row {
@@ -1227,6 +1588,14 @@ select {
   min-width: 0;
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 /* ---------------------------------------------------------------------
    13. Detail page
    --------------------------------------------------------------------- */
@@ -1235,6 +1604,7 @@ select {
   grid-template-columns: 260px 1fr;
   gap: 28px;
   align-items: start;
+  margin: 12px 0 30px;
 }
 
 img.detail-cover {
@@ -1242,6 +1612,7 @@ img.detail-cover {
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--surface-2);
+  box-shadow: var(--shadow-1);
 }
 
 .detail-body {
@@ -1249,8 +1620,10 @@ img.detail-cover {
 }
 
 .detail-title {
-  font-size: clamp(1.4rem, 1.1rem + 1.2vw, 2rem);
-  margin-bottom: 4px;
+  font-size: clamp(1.4rem, 1.1rem + 1.2vw, 2.05rem);
+  font-weight: 780;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
 }
 
 .detail-meta {
@@ -1269,15 +1642,15 @@ img.detail-cover {
 .detail-facts {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 8px 20px;
+  gap: 10px 20px;
   margin: 0;
 }
 
 .detail-facts dt {
   color: var(--faint);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   font-weight: 650;
   white-space: nowrap;
 }
@@ -1285,36 +1658,55 @@ img.detail-cover {
 .detail-facts dd {
   margin: 0;
   color: var(--text);
+  overflow-wrap: break-word;
+}
+
+.detail-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px 20px;
+  margin: 18px 0 22px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.detail-side .owners,
+.detail-side .entry-mine {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.detail-side .owners-label {
+  text-align: left;
+}
+
+.detail-side > .summary {
+  flex: 1 1 320px;
+  margin: 0;
 }
 
 /* ---------------------------------------------------------------------
-   14. Members
+   14. Members & invites
    --------------------------------------------------------------------- */
 .members {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
+  margin-bottom: 20px;
 }
 
 .member {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 12px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-}
-
-.member:first-child {
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.member:last-child {
-  border-radius: 0 0 var(--radius) var(--radius);
-}
-
-.member + .member {
-  border-top: none;
+  border-radius: var(--radius-sm);
 }
 
 .member img.avatar {
@@ -1326,14 +1718,17 @@ img.detail-cover {
 }
 
 .member-name {
-  font-weight: 600;
+  font-weight: 650;
   margin-right: 4px;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .member-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1347,17 +1742,34 @@ img.detail-cover {
 .member-actions select {
   width: auto;
   min-width: 120px;
+  min-height: 32px;
 }
 
 .invite-box {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px 16px;
   margin-bottom: 20px;
+  border: 1px dashed rgba(255, 201, 160, 0.4);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 201, 160, 0.06);
 }
 
-.invite-link {
+.invite-box p {
+  margin: 0;
+}
+
+.invite-box .form-row {
+  margin-bottom: 0;
+}
+
+.invite-box .invite-link {
   flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 0.82rem;
 }
 
 .table {
@@ -1376,13 +1788,17 @@ img.detail-cover {
 .table th {
   text-transform: uppercase;
   font-size: 0.7rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--faint);
   font-weight: 650;
 }
 
 .table tbody tr:hover {
   background: var(--surface-2);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 /* ---------------------------------------------------------------------
@@ -1439,6 +1855,12 @@ img.detail-cover {
   img.detail-cover {
     max-width: 220px;
   }
+
+  /* The vote column would eat the title column here; the label carries
+     the meaning, so the face goes. */
+  .vote-btn .kao {
+    display: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1474,25 +1896,74 @@ img.detail-cover {
   }
 
   .entry-mine {
-    flex-wrap: wrap;
-  }
-
-  .owners-label {
-    white-space: normal;
+    text-align: left;
+    justify-content: flex-start;
   }
 
   .owners {
     align-items: flex-start;
   }
 
-  .entry-mine {
-    text-align: left;
-    justify-content: flex-start;
+  .owners-label {
+    white-space: normal;
   }
 
   a.entry-cover img {
     width: 96px;
     height: 45px;
+  }
+
+  .entry-actions > form:first-child {
+    flex-basis: 100%;
+  }
+
+  .detail-side {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  /* The header nav and the account line are the widest thing on a phone
+     and were expanding the whole document. Let them collapse instead. */
+  header.top .wrap {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  header.top .top-nav {
+    display: none;
+  }
+
+  header.top .who {
+    margin-left: auto;
+    min-width: 0;
+  }
+
+  .brand {
+    font-size: 1rem;
+  }
+
+  /* Six columns of invite table do not fit a phone: give the table a fixed
+     layout so it can never widen the page, and let cells wrap inside it. */
+  .table {
+    table-layout: fixed;
+  }
+
+  .table th,
+  .table td {
+    padding: 8px 6px;
+    font-size: 0.82rem;
+    overflow-wrap: anywhere;
+  }
+
+  .table th:first-child,
+  .table td:first-child {
+    width: 40%;
+  }
+
+  .table th:last-child,
+  .table td:last-child {
+    width: 26%;
   }
 }
 
@@ -1532,6 +2003,31 @@ img.detail-cover {
   .stale {
     flex-wrap: wrap;
   }
+
+  /* Keep the vote row on one line: the label stays, the face goes. */
+  .vote {
+    gap: 6px;
+  }
+
+  .vote-btn {
+    padding: 0 11px;
+  }
+
+  .vote-btn .kao {
+    display: none;
+  }
+
+  .entry-side {
+    gap: 8px 12px;
+  }
+
+  .page-head {
+    align-items: flex-start;
+  }
+
+  .member-name {
+    font-size: 0.9rem;
+  }
 }
 
 @media (max-width: 360px) {
@@ -1547,60 +2043,12 @@ img.detail-cover {
     padding: 12px;
     gap: 12px;
   }
-}
 
-/* --- small post-review adjustments ---------------------------------- */
-.entry-mine {
-  flex-wrap: wrap;
-  row-gap: 6px;
-}
-
-.owners-label {
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 520px) {
-  /* The header nav and the account line are the widest thing on a phone and
-     were expanding the whole document. Let them collapse instead. */
-  header.top .wrap {
-    flex-wrap: wrap;
-    gap: 10px;
+  .vote-btn {
+    padding: 0 10px;
   }
 
-  header.top .top-nav {
-    display: none;
+  .vote-btn .vote-label {
+    letter-spacing: 0.03em;
   }
-
-  header.top .who {
-    margin-left: auto;
-    min-width: 0;
-  }
-
-  .brand {
-    font-size: 1rem;
-  }
-}
-
-/* --- game detail ---------------------------------------------------- */
-.detail-side {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 16px 20px;
-  margin: 16px 0 8px;
-}
-
-.detail-side .owners,
-.detail-side .entry-mine {
-  align-items: flex-start;
-  text-align: left;
-}
-
-.detail-side .owners-label {
-  text-align: left;
-}
-
-.detail-side > .summary {
-  flex: 1 1 320px;
-  margin: 0;
 }

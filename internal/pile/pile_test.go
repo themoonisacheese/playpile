@@ -231,3 +231,104 @@ func TestSummaryUsesVotes(t *testing.T) {
 		t.Errorf("liked count = %d", counts[FilterLiked])
 	}
 }
+
+func TestHardNoDisqualifies(t *testing.T) {
+	st, cat, crew, ada, members := fixture(t)
+	entries, _ := st.Entries(crew.ID, ada.ID)
+	var beta int64
+	for _, e := range entries {
+		if e.AppID == 20 {
+			beta = e.ID
+		}
+	}
+	if beta == 0 {
+		t.Fatal("no Beta entry in the fixture")
+	}
+	// Bo says hard no to Beta, the 20.00 game two members are missing.
+	bo := members[1]
+	if err := st.Vote(crew.ID, beta, bo.ID, -1); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	p, err := Build(ctx, st, cat, crew, bo.User, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A vetoed game counts for nothing: it leaves the totals, the personal
+	// bill and the readiness count, and is itself reported as disqualified.
+	if p.Summary.Vetoed != 1 {
+		t.Errorf("Vetoed = %d, want 1", p.Summary.Vetoed)
+	}
+	if p.Summary.Total != 1000 {
+		t.Errorf("Total = %d, want 1000 (Alpha only)", p.Summary.Total)
+	}
+	if p.Summary.GroupCost != 1000 {
+		t.Errorf("GroupCost = %d, want 1000 (Alpha, one member missing)", p.Summary.GroupCost)
+	}
+	if p.Summary.MyCost != 0 || p.Summary.MissingForMe != 0 {
+		t.Errorf("MyCost = %d, MissingForMe = %d, want 0 and 0", p.Summary.MyCost, p.Summary.MissingForMe)
+	}
+
+	// Whatever the sort, the disqualified game is the last row and only once.
+	for _, order := range []string{SortScore, SortAdded, SortPrice, SortName, SortMeta} {
+		q, err := Build(ctx, st, cat, crew, bo.User, Options{Sort: order})
+		if err != nil {
+			t.Fatalf("%s: %v", order, err)
+		}
+		last := q.Entries[len(q.Entries)-1]
+		if last.AppID != 20 {
+			t.Errorf("%s sort: last row = %d, want the vetoed Beta", order, last.AppID)
+		}
+		for i, e := range q.Entries {
+			if e.AppID == 20 && i != len(q.Entries)-1 {
+				t.Errorf("%s sort: Beta at %d of %d, want last", order, i, len(q.Entries))
+			}
+		}
+	}
+
+	// The plain list still shows it (somebody has to be able to un-vote it),
+	// but the "to buy" filter treats it as settled.
+	active, err := Build(ctx, st, cat, crew, bo.User, Options{Filter: FilterActive})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasAppID(active.Entries, 20) {
+		t.Error("the active list dropped the vetoed game instead of sinking it")
+	}
+	missing, err := Build(ctx, st, cat, crew, bo.User, Options{Filter: FilterMissing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasAppID(missing.Entries, 20) {
+		t.Error("a vetoed game still shows up under \"to buy\"")
+	}
+	if n := active.Counts()[FilterMissing]; n != 0 {
+		t.Errorf("missing count = %d, want 0", n)
+	}
+
+	// Taking the hard no back puts the game back in play.
+	if err := st.Vote(crew.ID, beta, bo.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Build(ctx, st, cat, crew, bo.User, Options{Sort: SortPrice})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Summary.Vetoed != 0 || again.Summary.Total != 3000 {
+		t.Errorf("after unveto: Vetoed = %d, Total = %d", again.Summary.Vetoed, again.Summary.Total)
+	}
+	if again.Entries[0].AppID != 20 {
+		t.Errorf("after unveto the price sort first = %d, want 20", again.Entries[0].AppID)
+	}
+}
+
+func hasAppID(entries []Entry, appid int) bool {
+	for _, e := range entries {
+		if e.AppID == appid {
+			return true
+		}
+	}
+	return false
+}
