@@ -27,7 +27,7 @@
 {{define "owners"}}
 <div class="owners">
   <div class="owners-row">
-    {{range .Owners}}<span class="owner{{if .IsMe}} owner--me{{end}}" title="{{.Name}}">{{.Initial}}</span>{{end}}
+    {{range .Owners}}<span class="owner{{if .IsMe}} owner--me{{end}}" title="{{.Name}}"><span class="owner-initial">{{.Initial}}</span>{{if .Avatar}}<img class="owner-avatar" src="{{.Avatar}}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">{{end}}</span>{{end}}
     {{if gt .MoreOwners 0}}<span class="owner owner--more">+{{.MoreOwners}}</span>{{end}}
   </div>
   <span class="owners-label">{{.OwnerCount}} of {{.MemberCount}} own it</span>
@@ -74,7 +74,7 @@
     <a class="entry-title" href="{{.URL}}">{{.Name}}</a>
     {{if .Sub}}<div class="entry-sub">{{.Sub}}</div>{{end}}
     <div class="entry-meta">
-      {{if .MetaScore}}<span class="chip chip--meta {{.MetaClass}}" title="Metascore">MC {{.MetaScore}}</span>{{end}}
+      {{if .HasMetaScore}}<span class="chip chip--meta {{.MetaClass}}" title="Metascore">MC {{.MetaScore}}</span>{{end}}
       {{if .ReviewDesc}}<span class="chip chip--review {{.ReviewClass}}" title="{{.ReviewCount}} Steam reviews">{{.ReviewDesc}} {{.ReviewPct}}%</span>
       {{else if .ReviewCount}}<span class="chip chip--review">{{.ReviewCount}} reviews</span>{{end}}
       {{if .Discount}}<span class="chip chip--discount">-{{.Discount}}%</span>{{end}}
@@ -84,6 +84,7 @@
       {{if .OwnedByMe}}<span class="chip chip--owned">you own it</span>{{end}}
       {{if and (not .OwnedByAll) (gt .Missing 0)}}<span class="chip chip--missing">{{.Missing}} without</span>{{end}}
       {{if .Vetoed}}<span class="chip chip--veto" title="a hard no disqualifies a game">{{.Down}} hard no — out</span>{{end}}
+      {{if .IsManual}}<span class="chip" title="Details and price are maintained by the crew">non-Steam · manual</span>{{if .CanEditManual}}<a class="chip" href="{{.EditURL}}">edit details</a>{{end}}{{end}}
       {{if not .Available}}<span class="chip chip--soon">no store data</span>{{end}}
     </div>
     {{if .Note}}<p class="entry-note">{{.Note}}</p>{{end}}

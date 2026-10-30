@@ -15,8 +15,9 @@ func (s *Server) handleGame(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	appid, ok := intParam(r.PathValue("appid"))
-	if !ok || appid <= 0 {
+	appid, appOK := intParam(r.PathValue("appid"))
+	entryID, entryOK := idParam(r, "id")
+	if (!appOK || appid <= 0) && !entryOK {
 		s.notFound(w, r, "Unknown game.")
 		return
 	}
@@ -29,7 +30,7 @@ func (s *Server) handleGame(w http.ResponseWriter, r *http.Request) {
 
 	var found *pile.Entry
 	for i := range view.Pile.All {
-		if view.Pile.All[i].AppID == appid {
+		if (entryOK && view.Pile.All[i].ID == entryID) || (!entryOK && view.Pile.All[i].AppID == appid && view.Pile.All[i].Manual == nil) {
 			found = &view.Pile.All[i]
 			break
 		}

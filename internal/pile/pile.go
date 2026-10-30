@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"playpile/internal/catalog"
+	"playpile/internal/money"
 	"playpile/internal/steam"
 	"playpile/internal/store"
 )
@@ -196,12 +197,19 @@ func Build(ctx context.Context, st *store.Store, cat *catalog.Catalog, crew stor
 		return nil, err
 	}
 
+	manualOwnership, err := st.CrewManualOwnership(crew.ID)
+	if err != nil {
+		return nil, err
+	}
 	entries := fetchMetadata(ctx, st, cat, crew, raw)
 
 	// Ownership and per-entry money.
 	for i := range entries {
 		e := &entries[i]
 		owned := ownership[e.AppID]
+		if e.Manual != nil {
+			owned = manualOwnership[e.ID]
+		}
 		e.OwnedByMe = owned[me.ID]
 		missing := 0
 		var owners []store.Member
@@ -217,7 +225,7 @@ func Build(ctx context.Context, st *store.Store, cat *catalog.Catalog, crew stor
 	}
 
 	p := &Pile{Crew: crew, Me: store.Member{User: me, Role: role}, Members: members, All: entries, Options: opts}
-	p.Summary = summarise(entries, members, me.ID)
+	p.Summary = summarise(entries, members, me.ID, money.CurrencyForCountry(crew.Country))
 	p.Entries = applyFilter(entries, opts.Filter)
 	sortEntries(p.Entries, opts.Sort)
 	p.DataAge = oldestFetch(entries)
@@ -238,6 +246,21 @@ func fetchMetadata(ctx context.Context, st *store.Store, cat *catalog.Catalog, c
 
 	for i, r := range raw {
 		entries[i] = Entry{Entry: r}
+		if r.Manual != nil {
+			m := r.Manual
+			g := steam.Game{Name: m.Name, ShortDescription: m.Description, HeaderImage: m.ImageURL, Type: "manual"}
+			if m.PriceMinor != nil {
+				g.IsFree = *m.PriceMinor == 0
+				g.Price = &steam.Price{Currency: m.Currency, Initial: *m.PriceMinor, Final: *m.PriceMinor}
+			}
+			if m.MetaScore != nil {
+				g.Metacritic = &steam.Metacritic{Score: *m.MetaScore}
+			}
+			entries[i].Game = g
+			entries[i].Price = g.Price
+			entries[i].Available = true
+			continue
+		}
 		wg.Add(1)
 		go func(i int, r store.Entry) {
 			defer wg.Done()
@@ -268,23 +291,13 @@ func fetchMetadata(ctx context.Context, st *store.Store, cat *catalog.Catalog, c
 }
 
 // summarise computes the strip: totals, readiness and counts.
-func summarise(entries []Entry, members []store.Member, meID int64) Summary {
+func summarise(entries []Entry, members []store.Member, meID int64, currency string) Summary {
 	s := Summary{MemberCount: 0}
 	s.MemberCount = len(members)
 
-	// The display currency is whichever currency most priced entries use.
-	counts := make(map[string]int)
-	for _, e := range entries {
-		if e.Price != nil && e.Price.Currency != "" && e.Price.Final > 0 {
-			counts[e.Price.Currency]++
-		}
-	}
-	best, bestN := "", 0
-	for cur, n := range counts {
-		if n > bestN || (n == bestN && cur < best) {
-			best, bestN = cur, n
-		}
-	}
+	// A crew has one currency. Manual prices from a previous region remain
+	// visible but are excluded until someone updates them; never convert silently.
+	best := currency
 	s.Currency = best
 
 	for i := range entries {

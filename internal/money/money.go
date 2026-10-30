@@ -134,3 +134,152 @@ func group(digits, sep string) string {
 	}
 	return b.String()
 }
+
+// CurrencyForCountry follows Steam's store-region currencies. Regions without
+// a dedicated supported currency use USD. This also prices manual games in
+// the same currency as the crew, rather than mixing currencies in the totals.
+func CurrencyForCountry(country string) string {
+	country = strings.ToUpper(strings.TrimSpace(country))
+	switch country {
+	case "AT", "BE", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "HR", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PT", "SI", "SK", "BG", "CZ", "DK", "HU", "RO", "SE", "IS":
+		return "EUR"
+	case "GB":
+		return "GBP"
+	case "CA":
+		return "CAD"
+	case "AU":
+		return "AUD"
+	case "NZ":
+		return "NZD"
+	case "JP":
+		return "JPY"
+	case "KR":
+		return "KRW"
+	case "CN":
+		return "CNY"
+	case "IN":
+		return "INR"
+	case "BR":
+		return "BRL"
+	case "MX":
+		return "MXN"
+	case "PL":
+		return "PLN"
+	case "NO":
+		return "NOK"
+	case "CH", "LI":
+		return "CHF"
+	case "UA":
+		return "UAH"
+	case "RU":
+		return "RUB"
+	case "IL":
+		return "ILS"
+	case "SA":
+		return "SAR"
+	case "AE":
+		return "AED"
+	case "ZA":
+		return "ZAR"
+	case "SG":
+		return "SGD"
+	case "HK":
+		return "HKD"
+	case "TW":
+		return "TWD"
+	case "CL":
+		return "CLP"
+	case "CO":
+		return "COP"
+	case "PE":
+		return "PEN"
+	case "ID":
+		return "IDR"
+	case "MY":
+		return "MYR"
+	case "PH":
+		return "PHP"
+	case "TH":
+		return "THB"
+	case "VN":
+		return "VND"
+	case "KZ":
+		return "KZT"
+	case "KW":
+		return "KWD"
+	case "QA":
+		return "QAR"
+	case "CR":
+		return "CRC"
+	case "UY":
+		return "UYU"
+	default:
+		return "USD"
+	}
+}
+
+// Parse accepts a nonnegative decimal amount without floating-point rounding.
+// A blank value means unknown, which is different from a zero/free price.
+func Parse(amount, currency string) (*int64, error) {
+	amount = strings.ReplaceAll(strings.TrimSpace(amount), ",", ".")
+	if amount == "" {
+		return nil, nil
+	}
+	digits := Digits(currency)
+	parts := strings.Split(amount, ".")
+	if len(parts) > 2 || parts[0] == "" {
+		return nil, strconv.ErrSyntax
+	}
+	for _, part := range parts {
+		for _, r := range part {
+			if r < '0' || r > '9' {
+				return nil, strconv.ErrSyntax
+			}
+		}
+	}
+	frac := ""
+	if len(parts) == 2 {
+		frac = parts[1]
+		if frac == "" || len(frac) > digits {
+			return nil, strconv.ErrSyntax
+		}
+	}
+	if len(parts[0]) > 12 {
+		return nil, strconv.ErrRange
+	}
+	scale := int64(1)
+	for i := 0; i < digits; i++ {
+		scale *= 10
+	}
+	whole, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	frac += strings.Repeat("0", digits-len(frac))
+	var fraction int64
+	if frac != "" {
+		fraction, err = strconv.ParseInt(frac, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+	}
+	value := whole*scale + fraction
+	if value > 1_000_000_000_000 {
+		return nil, strconv.ErrRange
+	}
+	return &value, nil
+}
+
+// Decimal formats minor units for an editable decimal input (without symbols).
+func Decimal(minor int64, currency string) string {
+	digits := Digits(currency)
+	scale := int64(1)
+	for i := 0; i < digits; i++ {
+		scale *= 10
+	}
+	if digits == 0 {
+		return strconv.FormatInt(minor, 10)
+	}
+	frac := strconv.FormatInt(minor%scale, 10)
+	return strconv.FormatInt(minor/scale, 10) + "." + strings.Repeat("0", digits-len(frac)) + frac
+}

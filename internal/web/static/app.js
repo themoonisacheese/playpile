@@ -7,6 +7,13 @@
 (function () {
   "use strict";
 
+  // Keep the initial underneath until an avatar loads; remove broken images
+  // without inline event handlers so the fallback remains readable.
+  document.addEventListener("error", function (event) {
+    var image = event.target;
+    if (image && image.tagName === "IMG" && image.classList.contains("owner-avatar")) image.remove();
+  }, true);
+
   /* ---------------------------------------------------------------
    * Flash helper: show an error either in the page flash slot, or
    * fall back to alert() if that slot does not exist.

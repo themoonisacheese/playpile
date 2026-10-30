@@ -74,27 +74,35 @@ type ownerVM struct {
 	Initial string
 	Name    string
 	IsMe    bool
+	// Avatar is the member's Steam avatar URL, empty when Steam knows none.
+	// The bubble falls back to Initial, so this may stay empty.
+	Avatar string
 }
 
 // entryVM is one game row, fully pre-rendered.
 type entryVM struct {
-	ID        int64
-	AppID     int
-	CrewID    int64
-	CSRF      string
-	CanRemove bool
-	Name      string
-	URL       string
-	Cover     string
-	Sub       string
-	Note      string
-	AddedBy   string
-	Score     int
-	ScoreSign string
-	MyVote    int
-	Up        int
-	Down      int
-	Vetoed    bool // disqualified by at least one hard no
+	IsManual      bool
+	CanEditManual bool
+	EditURL       string
+	StoreURL      string
+	HasMetaScore  bool
+	ID            int64
+	AppID         int
+	CrewID        int64
+	CSRF          string
+	CanRemove     bool
+	Name          string
+	URL           string
+	Cover         string
+	Sub           string
+	Note          string
+	AddedBy       string
+	Score         int
+	ScoreSign     string
+	MyVote        int
+	Up            int
+	Down          int
+	Vetoed        bool // disqualified by at least one hard no
 	// VetoedStart marks the first vetoed row, so the page can draw one
 	// "disqualified" divider above the block instead of one per row.
 	VetoedStart bool
@@ -334,6 +342,13 @@ func (s *Server) entryVM(p *pile.Pile, e pile.Entry, csrf string) entryVM {
 		IsFree:      e.Free(),
 	}
 
+	vm.IsManual = e.Manual != nil
+	if e.Manual != nil {
+		vm.URL = fmt.Sprintf("/c/%d/entries/%d", p.Crew.ID, e.ID)
+		vm.EditURL = vm.URL + "/edit"
+		vm.CanEditManual = p.IsAdmin() || e.AddedBy == p.Me.ID
+		vm.StoreURL = e.Manual.StoreURL
+	}
 	if e.Available {
 		vm.Cover = e.Game.HeaderImage
 		if vm.Cover == "" {
@@ -341,6 +356,7 @@ func (s *Server) entryVM(p *pile.Pile, e pile.Entry, csrf string) entryVM {
 		}
 		vm.Sub = subtitle(e.Game.Developers, e.Game.ReleaseDate, e.Game.ComingSoon)
 		if mc := e.Game.Metacritic; mc != nil {
+			vm.HasMetaScore = true
 			vm.MetaScore = mc.Score
 			vm.MetaClass = scoreClass(mc.Score)
 			vm.MetaURL = mc.URL
@@ -376,6 +392,7 @@ func (s *Server) entryVM(p *pile.Pile, e pile.Entry, csrf string) entryVM {
 			Initial: initial(m.DisplayName),
 			Name:    m.DisplayName,
 			IsMe:    m.ID == p.Me.ID,
+			Avatar:  m.AvatarURL,
 		})
 	}
 	return vm

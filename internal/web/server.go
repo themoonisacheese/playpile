@@ -107,7 +107,7 @@ func New(cfg Config, st *store.Store, cat *catalog.Catalog, steam SteamAPI, log 
 		},
 	}
 
-	pages := []string{"home", "crew", "game", "members", "join", "error"}
+	pages := []string{"home", "crew", "game", "members", "join", "error", "manual"}
 	s.pages = make(map[string]*template.Template, len(pages))
 	for _, p := range pages {
 		t, err := template.New("layout").Funcs(funcs).ParseFS(viewsFS, "views/layout.html", "views/_partials.html", "views/"+p+".html")
@@ -174,6 +174,11 @@ func (s *Server) routes() {
 	mux.HandleFunc("POST /c/{crew}/invites/{token}/revoke", s.handleRevokeInvite)
 	mux.HandleFunc("POST /c/{crew}/members/{id}/role", s.handleMemberRole)
 	mux.HandleFunc("POST /c/{crew}/members/{id}/remove", s.handleRemoveMember)
+	mux.HandleFunc("GET /c/{crew}/manual/new", s.handleManualForm)
+	mux.HandleFunc("POST /c/{crew}/manual", s.handleManualForm)
+	mux.HandleFunc("GET /c/{crew}/entries/{id}/edit", s.handleManualEdit)
+	mux.HandleFunc("POST /c/{crew}/entries/{id}/edit", s.handleManualEdit)
+	mux.HandleFunc("GET /c/{crew}/entries/{id}", s.handleGame)
 	mux.HandleFunc("POST /c/{crew}/entries", s.handleAddEntry)
 	mux.HandleFunc("POST /c/{crew}/entries/{id}/vote", s.handleVote)
 	mux.HandleFunc("POST /c/{crew}/entries/{id}/own", s.handleOwn)

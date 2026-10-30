@@ -7,7 +7,7 @@
   <div class="detail-body">
     <h1 class="detail-title">{{.Game.Name}}</h1>
     <div class="detail-meta">
-      {{if .Game.MetaScore}}<span class="chip chip--meta {{.Entry.MetaClass}}">MC {{.Game.MetaScore}}</span>{{end}}
+      {{if .Entry.HasMetaScore}}<span class="chip chip--meta {{.Entry.MetaClass}}">MC {{.Game.MetaScore}}</span>{{end}}
       {{if .Game.ReviewDesc}}<span class="chip chip--review {{.Entry.ReviewClass}}" title="{{.Game.ReviewTotal}} Steam reviews">{{.Game.ReviewDesc}} · {{.Game.ReviewPct}}% of {{.Game.ReviewTotalHuman}} reviews</span>{{end}}
       {{if .Game.IsFree}}<span class="chip chip--free">free</span>{{else if .Game.PriceLabel}}<span class="chip chip--price">{{.Game.PriceLabel}}</span>{{end}}
       {{if .Game.Release}}<span class="chip">{{.Game.Release}}</span>{{end}}
@@ -38,9 +38,12 @@
       {{if .Game.Pubs}}<dt>Publisher</dt><dd>{{.Game.Pubs}}</dd>{{end}}
       {{if .Game.Genres}}<dt>Genres</dt><dd>{{.Game.Genres}}</dd>{{end}}
       {{if .Game.Platforms}}<dt>Platforms</dt><dd>{{.Game.Platforms}}</dd>{{end}}
-      <dt>Steam</dt><dd><a href="https://store.steampowered.com/app/{{.Entry.AppID}}" rel="nofollow noreferrer">store page</a>{{if .Game.MetaURL}} · <a href="{{.Game.MetaURL}}" rel="nofollow noreferrer">Metacritic</a>{{end}}</dd>
+      {{if .Entry.IsManual}}<dt>Source</dt><dd>non-Steam · details and price entered by the crew</dd>
+      {{if .Entry.StoreURL}}<dt>Website</dt><dd><a href="{{.Entry.StoreURL}}" rel="nofollow noreferrer">game website / store</a></dd>{{end}}
+      {{else}}<dt>Steam</dt><dd><a href="https://store.steampowered.com/app/{{.Entry.AppID}}" rel="nofollow noreferrer">store page</a>{{if .Game.MetaURL}} · <a href="{{.Game.MetaURL}}" rel="nofollow noreferrer">Metacritic</a>{{end}}</dd>{{end}}
       {{if .Entry.AddedBy}}<dt>Added by</dt><dd>{{.Entry.AddedBy}}</dd>{{end}}
     </dl>
+    {{if .Entry.CanEditManual}}<p><a class="btn btn-sm btn-ghost" href="{{.Entry.EditURL}}">edit game details</a></p>{{end}}
   </div>
 </div>
 {{end}}

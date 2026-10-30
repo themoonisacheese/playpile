@@ -1,0 +1,22 @@
+{{define "title"}}{{.Heading}} — {{.Crew.Name}}{{end}}
+{{define "content"}}
+<section class="manual-game panel">
+  <p class="muted"><a href="/c/{{.CrewID}}">← back to the list</a></p>
+  <h1>{{.Heading}} <span class="kao">(^_^)</span></h1>
+  <p class="muted">Minecraft, an indie download, a browser game… anything the crew wants to play. Details are maintained by your crew, not fetched from Steam.</p>
+  {{if .Error}}<div class="flash flash--error" role="alert">{{.Error}}</div>{{end}}
+  <form method="post" action="{{.Action}}" class="manual-game-form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label><span>Game name <span class="muted">required</span></span><input type="text" name="name" value="{{.Fields.Name}}" maxlength="200" required placeholder="Minecraft"></label>
+    <label>Description<textarea name="description" maxlength="2000" rows="4" placeholder="What is it, and why should we play it?">{{.Fields.Description}}</textarea></label>
+    <label>Website or store link<input type="url" name="store_url" value="{{.Fields.StoreURL}}" maxlength="2048" placeholder="https://www.minecraft.net/"></label>
+    <label>Cover image URL<input type="url" name="image_url" value="{{.Fields.ImageURL}}" maxlength="2048" placeholder="https://…"></label>
+    <div class="manual-game-numbers">
+      <label>Price per person ({{.Currency}})<input type="text" inputmode="decimal" name="price" value="{{.Fields.Price}}" maxlength="16" placeholder="unknown"></label>
+      <label><span>Metascore <span class="muted">optional, 0–100</span></span><input type="number" name="metascore" value="{{.Fields.MetaScore}}" min="0" max="100" step="1" placeholder="unknown"></label>
+    </div>
+    <p class="muted">Leave price blank if unknown, or enter 0 for a free game. Prices use the crew's currency; they are not automatically updated. Ownership is marked manually.</p>
+    <button type="submit" class="btn btn-primary">{{if .EntryID}}save changes{{else}}add to the list{{end}}</button>
+  </form>
+</section>
+{{end}}

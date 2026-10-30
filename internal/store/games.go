@@ -28,26 +28,38 @@ func (s *Store) AddEntry(crewID int64, appid int, addedBy int64) (Entry, error) 
 	return Entry{ID: id, CrewID: crewID, AppID: appid, AddedBy: addedBy, AddedAt: ts, Status: StatusActive}, nil
 }
 
-// EntryByID loads one entry, scoped to its crew.
+// EntryByID loads one entry, scoped to its crew. A manual entry comes back with
+// AppID 0 and Manual filled in; the payload is read in the same row, so loading
+// a list never costs one query per entry.
 func (s *Store) EntryByID(crewID, id int64) (Entry, error) {
-	var e Entry
+	var (
+		e   Entry
+		raw string
+	)
 	err := s.db.QueryRow(`
-		SELECT id, crew_id, appid, COALESCE(added_by, 0), added_at, note, status
+		SELECT id, crew_id, COALESCE(appid, 0), COALESCE(added_by, 0), added_at, note, status, manual_json
 		FROM entries WHERE crew_id = ? AND id = ?`, crewID, id).
-		Scan(&e.ID, &e.CrewID, &e.AppID, &e.AddedBy, &e.AddedAt, &e.Note, &e.Status)
+		Scan(&e.ID, &e.CrewID, &e.AppID, &e.AddedBy, &e.AddedAt, &e.Note, &e.Status, &raw)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Entry{}, ErrNotFound
 	}
-	return e, err
+	if err != nil {
+		return Entry{}, err
+	}
+	if e.Manual, err = decodeManual(raw); err != nil {
+		return Entry{}, fmt.Errorf("entry %d: %w", id, err)
+	}
+	return e, nil
 }
 
 // Entries lists a crew's games with vote tallies and the viewer's own vote.
 func (s *Store) Entries(crewID, viewer int64) ([]Entry, error) {
 	rows, err := s.db.Query(`
-		SELECT e.id, e.crew_id, e.appid, COALESCE(e.added_by, 0), e.added_at, e.note, e.status,
+		SELECT e.id, e.crew_id, COALESCE(e.appid, 0), COALESCE(e.added_by, 0), e.added_at, e.note, e.status,
 		       COALESCE(SUM(CASE WHEN v.value > 0 THEN 1 ELSE 0 END), 0) AS ups,
 		       COALESCE(SUM(CASE WHEN v.value < 0 THEN 1 ELSE 0 END), 0) AS downs,
-		       COALESCE((SELECT w.value FROM votes w WHERE w.entry_id = e.id AND w.user_id = ?), 0) AS mine
+		       COALESCE((SELECT w.value FROM votes w WHERE w.entry_id = e.id AND w.user_id = ?), 0) AS mine,
+		       e.manual_json
 		FROM entries e
 		LEFT JOIN votes v ON v.entry_id = e.id
 		WHERE e.crew_id = ?
@@ -59,26 +71,46 @@ func (s *Store) Entries(crewID, viewer int64) ([]Entry, error) {
 	defer rows.Close()
 	var out []Entry
 	for rows.Next() {
-		var e Entry
+		var (
+			e   Entry
+			raw string
+		)
 		if err := rows.Scan(&e.ID, &e.CrewID, &e.AppID, &e.AddedBy, &e.AddedAt, &e.Note, &e.Status,
-			&e.Up, &e.Down, &e.MyVote); err != nil {
+			&e.Up, &e.Down, &e.MyVote, &raw); err != nil {
 			return nil, err
+		}
+		if e.Manual, err = decodeManual(raw); err != nil {
+			return nil, fmt.Errorf("entry %d: %w", e.ID, err)
 		}
 		out = append(out, e)
 	}
 	return out, rows.Err()
 }
 
-// DeleteEntry takes a game off the list; its votes are removed with it.
+// DeleteEntry takes a game off the list; its votes and manual ownership marks
+// are removed with it in the same transaction, so no orphaned row can count
+// toward a total later.
 func (s *Store) DeleteEntry(crewID, id int64) error {
-	res, err := s.db.Exec("DELETE FROM entries WHERE crew_id = ? AND id = ?", crewID, id)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec("DELETE FROM votes WHERE entry_id IN (SELECT id FROM entries WHERE crew_id = ? AND id = ?)", crewID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM manual_ownership WHERE entry_id IN (SELECT id FROM entries WHERE crew_id = ? AND id = ?)", crewID, id); err != nil {
+		return err
+	}
+	res, err := tx.Exec("DELETE FROM entries WHERE crew_id = ? AND id = ?", crewID, id)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
-	return nil
+	return tx.Commit()
 }
 
 // SetEntryStatus moves an entry between "active" and "played".

@@ -188,3 +188,26 @@ sorting), web (a full HTTP flow: login → crew → add → vote → own → inv
 
 This is an unofficial tool. Store data, prices and review summaries come from Steam's public
 endpoints and remain Valve's. Game names, images and trademarks belong to their owners.
+
+## Non-Steam games
+
+Use **+ non-Steam game** beside the search box to add Minecraft or any other
+non-Steam title. Only its name is required. Optionally supply a description,
+website/store link, cover image URL, per-person price and Metascore. Blank price
+means unknown; zero means free. Prices use the crew's store-region currency and
+are maintained manually. When the crew changes region, old manual prices are
+not converted or silently relabelled: edit them in the new currency before
+they count toward totals.
+
+Manual games share voting, hard-no disqualification, ownership, status and cost
+totals with Steam games, but never make Steam requests. Their creator and crew
+admins can edit details from the list or detail page. Ownership applies to that
+manual entry only; Steam library imports cannot change it. Ownership pills use
+Steam avatars with initials as the fallback.
+
+The first launch after upgrading migrates entries to allow a null Steam app ID
+and adds crew-maintained metadata and manual ownership. Existing entry IDs and
+votes are preserved. Back up the whole data directory while the service is
+stopped before upgrading. To roll back to a pre-manual-games release, restore
+both the old binary and that database backup: old binaries cannot read manual
+entries.

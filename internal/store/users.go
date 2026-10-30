@@ -295,7 +295,10 @@ func (s *Store) SetMemberRole(crewID, userID int64, role string) error {
 	return nil
 }
 
-// RemoveMember drops somebody from a crew. Their votes go with them.
+// RemoveMember drops somebody from a crew. Their votes go with them. Their
+// ownership marks stay, exactly like Steam ownership, which belongs to the
+// person rather than the crew; CrewManualOwnership and CrewOwnership only count
+// current members, so the marks stop affecting this crew's totals at once.
 func (s *Store) RemoveMember(crewID, userID int64) error {
 	tx, err := s.db.Begin()
 	if err != nil {

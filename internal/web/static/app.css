@@ -1444,6 +1444,8 @@ a.entry-cover:hover img {
 }
 
 .owner {
+  position: relative;
+  overflow: hidden;
   width: 26px;
   height: 26px;
   border-radius: 50%;
@@ -1474,6 +1476,24 @@ a.entry-cover:hover img {
   border: 2px solid var(--surface);
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--muted);
+}
+
+/* The initial sits under the avatar and is never removed, so a bubble whose
+   image fails to load just shows the letter again: no inline error handler,
+   no extra JavaScript, nothing a strict CSP has to allow. The image carries
+   no background of its own, so nothing paints over that fallback. */
+.owner-initial {
+  line-height: 1;
+}
+
+.owner img.owner-avatar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
 
 .owners-label {
@@ -2052,3 +2072,12 @@ img.detail-cover {
     letter-spacing: 0.03em;
   }
 }
+
+/* Crew-maintained non-Steam game form. */
+.manual-game { max-width: 760px; margin-inline:auto; padding:clamp(18px,4vw,32px); }
+.manual-game-form { display:grid; gap:18px; }
+.manual-game-form label { display:grid; gap:8px; }
+.manual-game-form input, .manual-game-form textarea { width:100%; min-width:0; }
+.manual-game-form textarea { resize:vertical; }
+.manual-game-numbers { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+@media(max-width:560px) { .manual-game-numbers { grid-template-columns:1fr; } }

@@ -228,8 +228,12 @@ func (s *Server) handleRefreshPrices(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	refreshed := 0
+	refreshed, steamEntries := 0, 0
 	for _, e := range entries {
+		if e.Manual != nil {
+			continue
+		}
+		steamEntries++
 		if err := s.cat.RefreshGame(ctx, e.AppID, crew.Country, crew.Language); err != nil {
 			s.log.Warn("refresh game", "appid", e.AppID, "err", err)
 			continue
@@ -237,9 +241,9 @@ func (s *Server) handleRefreshPrices(w http.ResponseWriter, r *http.Request) {
 		_ = s.cat.RefreshReviews(ctx, e.AppID)
 		refreshed++
 	}
-	if refreshed < len(entries) {
+	if refreshed < steamEntries {
 		s.back(w, r, fmt.Sprintf("/c/%d", crew.ID),
-			fmt.Sprintf("Refreshed %d of %d games from Steam.", refreshed, len(entries)), "error")
+			fmt.Sprintf("Refreshed %d of %d games from Steam.", refreshed, steamEntries), "error")
 		return
 	}
 	s.back(w, r, fmt.Sprintf("/c/%d", crew.ID), "Refreshed every game from Steam.", "ok")

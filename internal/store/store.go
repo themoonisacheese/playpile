@@ -142,16 +142,7 @@ CREATE TABLE IF NOT EXISTS invites (
 );
 CREATE INDEX IF NOT EXISTS invites_crew ON invites(crew_id);
 
-CREATE TABLE IF NOT EXISTS entries (
-	id       INTEGER PRIMARY KEY,
-	crew_id  INTEGER NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
-	appid    INTEGER NOT NULL,
-	added_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-	added_at INTEGER NOT NULL,
-	note     TEXT    NOT NULL DEFAULT '',
-	status   TEXT    NOT NULL DEFAULT 'active',
-	UNIQUE (crew_id, appid)
-);
+` + entriesTable + `;
 
 CREATE TABLE IF NOT EXISTS votes (
 	entry_id   INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
@@ -182,11 +173,45 @@ CREATE TABLE IF NOT EXISTS review_cache (
 	json       TEXT    NOT NULL,
 	fetched_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS manual_ownership (
+	entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+	user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	PRIMARY KEY (entry_id, user_id)
+);
 `
+
+// entriesColumns is the single definition of the entries table: migrateEntriesManual
+// rebuilds old databases from it, so the two can never drift apart.
+//
+// appid is nullable. A NULL appid marks a manual entry: a game Steam does not
+// sell, whose details live in manual_json instead of in Steam's catalog.
+// UNIQUE (crew_id, appid) still refuses duplicate Steam games, while SQLite
+// treats NULLs as distinct, so a crew may add the same manual game twice.
+const entriesColumns = `(
+	id          INTEGER PRIMARY KEY,
+	crew_id     INTEGER NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+	appid       INTEGER,
+	added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+	added_at    INTEGER NOT NULL,
+	note        TEXT    NOT NULL DEFAULT '',
+	status      TEXT    NOT NULL DEFAULT 'active',
+	manual_json TEXT    NOT NULL DEFAULT '',
+	UNIQUE (crew_id, appid),
+	CHECK ((appid IS NULL) = (manual_json <> ''))
+)`
+
+const entriesTable = "CREATE TABLE IF NOT EXISTS entries " + entriesColumns
+const entriesNewTable = "CREATE TABLE entries_new " + entriesColumns
 
 func (s *Store) migrate() error {
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)
+	}
+	// Databases created before manual entries have entries.appid NOT NULL,
+	// which SQLite cannot relax in place. See migrate_manual.go.
+	if err := s.migrateEntriesManual(); err != nil {
+		return fmt.Errorf("migrate entries: %w", err)
 	}
 	return nil
 }
@@ -275,6 +300,9 @@ type Entry struct {
 	Up      int
 	Down    int
 	MyVote  int
+	// Manual is set when this entry is a game Steam does not sell; AppID is 0
+	// then. It is nil for Steam entries.
+	Manual *ManualGame
 }
 
 // Score is the net vote count.

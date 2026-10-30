@@ -259,7 +259,12 @@ func (s *Server) handleOwn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	owned := r.PostFormValue("owned") == "1"
-	if err := s.st.SetOwned(user.ID, entry.AppID, owned, store.SourceManual); err != nil {
+	if entry.Manual != nil {
+		err = s.st.SetManualOwned(crew.ID, entry.ID, user.ID, owned)
+	} else {
+		err = s.st.SetOwned(user.ID, entry.AppID, owned, store.SourceManual)
+	}
+	if err != nil {
 		s.log.Error("set owned", "err", err)
 		s.jsonError(w, r, http.StatusInternalServerError, "Could not save that.", "")
 		return

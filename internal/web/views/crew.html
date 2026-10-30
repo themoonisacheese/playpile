@@ -30,6 +30,7 @@
            data-search-url="/c/{{.CrewID}}/search" data-add-url="/c/{{.CrewID}}/entries">
     <div class="search-results"></div>
   </form>
+  <a class="btn btn-sm btn-ghost" href="/c/{{.CrewID}}/manual/new">+ non-Steam game</a>
   <div class="filters">
     {{range .Filters}}<a class="filter{{if .Active}} is-active{{end}}" href="{{.Href}}">{{.Label}}{{if .Count}} <span class="faint">{{.Count}}</span>{{end}}</a>{{end}}
   </div>
