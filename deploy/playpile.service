@@ -8,6 +8,10 @@ Type=simple
 User=playpile
 Group=playpile
 WorkingDirectory=/var/lib/playpile
+# The app may listen on a specific address (PLAYPILE_ADDR), which is not
+# necessarily configured the instant the network target is reached, so wait
+# for a global address before starting. 60 * 0.25s = 15s, then fail loudly.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do ip -4 -o addr show scope global | grep -q "inet " && exit 0; sleep 0.25; done; echo "no global IPv4 address on this host" >&2; exit 1'
 ExecStart=/usr/local/bin/playpile
 EnvironmentFile=/etc/playpile/playpile.env
 Restart=on-failure
@@ -23,7 +27,7 @@ ReadWritePaths=/var/lib/playpile
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 
