@@ -60,6 +60,12 @@ func newApp(t *testing.T) (*httptest.Server, *store.Store) {
 		730: {AppID: 730, Name: "Shooter", IsFree: true},
 	}}
 	cat := catalog.New(st, fake)
+	// Display reads are cache-only. Seed the review data asserted by these UI fixtures.
+	for id := range fake.games {
+		if _, err := cat.Reviews(context.Background(), id); err != nil {
+			t.Fatal(err)
+		}
+	}
 	srv, err := New(Config{
 		DevLogin:        true,
 		DefaultCountry:  "US",

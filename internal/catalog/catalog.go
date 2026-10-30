@@ -44,7 +44,8 @@ type Catalog struct {
 	limit chan struct{}
 
 	mu         sync.Mutex
-	refreshing map[string]bool
+	refreshing map[string]refreshState
+	background chan struct{}
 }
 
 // New builds a catalog backed by st and cl.
@@ -56,13 +57,24 @@ func New(st *store.Store, cl Client) *Catalog {
 		ReviewTTL:  DefaultReviewTTL,
 		Now:        time.Now,
 		limit:      make(chan struct{}, 4),
-		refreshing: make(map[string]bool),
+		refreshing: make(map[string]refreshState),
+		background: make(chan struct{}, 2),
 	}
 }
 
 // Game returns metadata for an app in a region, from cache when possible.
 // Stale entries are served immediately and refreshed in the background.
 func (c *Catalog) Game(ctx context.Context, appid int, country, lang string) (steam.Game, error) {
+	return c.game(ctx, appid, country, lang, true)
+}
+
+// CachedGame never waits for Steam. Missing or stale data is refreshed in the
+// background; callers must display unavailable data honestly until it arrives.
+func (c *Catalog) CachedGame(ctx context.Context, appid int, country, lang string) (steam.Game, error) {
+	return c.game(ctx, appid, country, lang, false)
+}
+
+func (c *Catalog) game(ctx context.Context, appid int, country, lang string, wait bool) (steam.Game, error) {
 	cached, err := c.store.GetGameCache(appid, country)
 	if err == nil {
 		var g steam.Game
@@ -74,6 +86,10 @@ func (c *Catalog) Game(ctx context.Context, appid int, country, lang string) (st
 		}
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return steam.Game{}, err
+	}
+	if !wait {
+		c.revalidate("game:"+country+":"+itoa(appid), func(ctx context.Context) { _ = c.RefreshGame(ctx, appid, country, lang) })
+		return steam.Game{}, ErrUnavailable
 	}
 	return c.fetchGame(ctx, appid, country, lang)
 }
@@ -104,6 +120,16 @@ func (c *Catalog) fetchGame(ctx context.Context, appid int, country, lang string
 
 // Reviews returns the review summary for an app, from cache when possible.
 func (c *Catalog) Reviews(ctx context.Context, appid int) (steam.Reviews, error) {
+	return c.reviews(ctx, appid, true)
+}
+
+// CachedReviews serves only local data and schedules a bounded background fetch
+// on a miss. A failed review endpoint must never delay a vote or page render.
+func (c *Catalog) CachedReviews(ctx context.Context, appid int) (steam.Reviews, error) {
+	return c.reviews(ctx, appid, false)
+}
+
+func (c *Catalog) reviews(ctx context.Context, appid int, wait bool) (steam.Reviews, error) {
 	cached, err := c.store.GetReviewCache(appid)
 	if err == nil {
 		var r steam.Reviews
@@ -115,6 +141,10 @@ func (c *Catalog) Reviews(ctx context.Context, appid int) (steam.Reviews, error)
 		}
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return steam.Reviews{}, err
+	}
+	if !wait {
+		c.revalidate("reviews:"+itoa(appid), func(ctx context.Context) { _ = c.RefreshReviews(ctx, appid) })
+		return steam.Reviews{}, ErrUnavailable
 	}
 	return c.fetchReviews(ctx, appid)
 }
@@ -164,21 +194,44 @@ func (c *Catalog) stale(fetchedAt int64, ttl time.Duration) bool {
 	return c.Now().Unix()-fetchedAt > int64(ttl.Seconds())
 }
 
-// revalidate runs fn in the background unless the same key is already running.
+// Keep retry bookkeeping and goroutines bounded, including during Steam outages.
+const maxRefreshKeys = 128
+const refreshCooldown = time.Minute
+
+type refreshState struct {
+	running    bool
+	retryAfter time.Time
+}
+
+// revalidate skips duplicate work, limits background traffic to two requests,
+// and backs off for one minute after completion (including failures). Expired
+// cooldowns are pruned; at capacity a new key is deferred to a later page view.
 func (c *Catalog) revalidate(key string, fn func(context.Context)) {
 	c.mu.Lock()
-	if c.refreshing[key] {
+	now := c.Now()
+	for k, state := range c.refreshing {
+		if !state.running && !now.Before(state.retryAfter) {
+			delete(c.refreshing, k)
+		}
+	}
+	if _, exists := c.refreshing[key]; exists || len(c.refreshing) >= maxRefreshKeys {
 		c.mu.Unlock()
 		return
 	}
-	c.refreshing[key] = true
+	select {
+	case c.background <- struct{}{}:
+	default:
+		c.mu.Unlock()
+		return
+	}
+	c.refreshing[key] = refreshState{running: true}
 	c.mu.Unlock()
-
 	go func() {
 		defer func() {
 			c.mu.Lock()
-			delete(c.refreshing, key)
+			c.refreshing[key] = refreshState{retryAfter: c.Now().Add(refreshCooldown)}
 			c.mu.Unlock()
+			<-c.background
 		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()

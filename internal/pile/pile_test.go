@@ -71,6 +71,12 @@ func fixture(t *testing.T) (*store.Store, *catalog.Catalog, store.Crew, store.Us
 		},
 	}
 	cat := catalog.New(st, fake)
+	for id := range fake.games {
+		if _, err := cat.Game(context.Background(), id, "US", "english"); err != nil {
+			t.Fatal(err)
+		}
+		_, _ = cat.Reviews(context.Background(), id)
+	}
 
 	for _, appid := range []int{10, 20, 30, 40, 50} {
 		if _, err := st.AddEntry(crew.ID, appid, ada.ID); err != nil {

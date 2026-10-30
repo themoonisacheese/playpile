@@ -248,7 +248,7 @@ func fetchMetadata(ctx context.Context, st *store.Store, cat *catalog.Catalog, c
 			}
 			defer func() { <-sem }()
 
-			g, err := cat.Game(ctx, r.AppID, crew.Country, crew.Language)
+			g, err := cat.CachedGame(ctx, r.AppID, crew.Country, crew.Language)
 			if err == nil && g.Name != "" {
 				entries[i].Game = g
 				entries[i].Price = g.Price
@@ -258,7 +258,7 @@ func fetchMetadata(ctx context.Context, st *store.Store, cat *catalog.Catalog, c
 					entries[i].FetchedAt = cached.FetchedAt
 				}
 			}
-			if rev, err := cat.Reviews(ctx, r.AppID); err == nil {
+			if rev, err := cat.CachedReviews(ctx, r.AppID); err == nil {
 				entries[i].Reviews = &rev
 			}
 		}(i, r)

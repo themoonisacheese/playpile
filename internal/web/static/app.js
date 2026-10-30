@@ -145,7 +145,7 @@
       if (pressed && valueInput) {
         valueInput.value = "0";
       } else if (valueInput) {
-        valueInput.value = btn.getAttribute("data-value") || valueInput.value;
+        valueInput.value = btn.classList.contains("up") ? "1" : "-1";
       }
     },
     true
@@ -167,7 +167,7 @@
     }
     setBusy(entry, true);
 
-    var formData = new FormData(form);
+    var formData = new URLSearchParams(new FormData(form));
 
     fetch(form.getAttribute("action") || form.action, {
       method: form.getAttribute("method") || "POST",
