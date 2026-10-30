@@ -1,0 +1,14 @@
+{{define "title"}}Join {{.Crew.Name}} — playpile{{end}}
+{{define "content"}}
+<section class="hero">
+  <h1>Join {{.Crew.Name}}</h1>
+  <p class="lede">You've been invited to help pick what this crew plays next: {{.Members}} {{plural .Members "player" "players"}} and one shared list.</p>
+  <div class="hero-actions">
+    <form method="post" action="/join/{{.Token}}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="btn btn-primary" type="submit">Join as {{.Role}}</button>
+    </form>
+    <a class="btn btn-ghost" href="/">Not now</a>
+  </div>
+</section>
+{{end}}

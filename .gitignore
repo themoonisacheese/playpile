@@ -1,0 +1,7 @@
+/data/
+/dist/
+/playpile
+*.db
+*.db-wal
+*.db-shm
+.env

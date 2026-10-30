@@ -1,0 +1,151 @@
+{{define "title"}}People — {{.Crew.Name}}{{end}}
+{{define "content"}}
+<p class="muted"><a href="/c/{{.CrewID}}">← back to the list</a></p>
+
+<section class="page-head">
+  <div>
+    <h1>People &amp; invites</h1>
+    <p class="muted">{{.Crew.Name}} · you are <span class="badge badge--{{.Role}}">{{.Role}}</span></p>
+  </div>
+</section>
+
+<div class="members">
+  {{range .Members}}
+  <div class="member">
+    {{if .Avatar}}<img class="avatar" src="{{.Avatar}}" alt="" width="32" height="32">{{end}}
+    <span class="member-name">{{.Name}}{{if .IsMe}} <span class="faint">(you)</span>{{end}}</span>
+    <span class="badge badge--{{.Role}}">{{.Role}}</span>
+    <span class="muted faint">joined {{.Joined}}</span>
+    <div class="member-actions">
+      {{if .CanEdit}}
+      <form method="post" action="/c/{{$.CrewID}}/members/{{.ID}}/role">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <select name="role" aria-label="Role for {{.Name}}">
+          <option value="member"{{if eq .Role "member"}} selected{{end}}>member</option>
+          <option value="admin"{{if eq .Role "admin"}} selected{{end}}>admin</option>
+        </select>
+        <button class="btn btn-sm" type="submit">save</button>
+      </form>
+      {{end}}
+      {{if .CanRemove}}
+      <form method="post" action="/c/{{$.CrewID}}/members/{{.ID}}/remove" data-confirm="Remove {{.Name}} from this crew?">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button class="btn btn-sm btn-danger" type="submit">{{if .IsMe}}leave{{else}}remove{{end}}</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+
+{{if .IsAdmin}}
+<section class="card">
+  <div class="card-head"><h2 class="card-title">Invite somebody</h2></div>
+  <div class="card-body">
+    {{if .NewInvite}}
+    <div class="invite-box">
+      <p><strong>Fresh invite link.</strong> Send it to whoever should join.</p>
+      <div class="form-row">
+        <input class="invite-link" type="text" readonly value="{{.BaseURL}}/join/{{.NewInvite}}" aria-label="Invite link">
+        <button class="btn btn-sm" type="button" data-copy="{{.BaseURL}}/join/{{.NewInvite}}">copy</button>
+      </div>
+    </div>
+    {{end}}
+    <form method="post" action="/c/{{.CrewID}}/invites">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="form-row">
+        <div class="field">
+          <label for="inv-role">Role</label>
+          <select id="inv-role" name="role">
+            <option value="member">member — can add, vote, mark ownership</option>
+            <option value="admin">admin — can also manage people and remove games</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="inv-days">Expires in (days, empty = never)</label>
+          <input type="text" id="inv-days" name="days" inputmode="numeric" placeholder="7">
+        </div>
+        <div class="field">
+          <label for="inv-uses">Max uses (empty = unlimited)</label>
+          <input type="text" id="inv-uses" name="uses" inputmode="numeric" placeholder="5">
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Create invite link</button></div>
+    </form>
+  </div>
+</section>
+
+{{if .Invites}}
+<section class="card">
+  <div class="card-head"><h2 class="card-title">Invites</h2></div>
+  <div class="card-body">
+    <table class="table">
+      <thead><tr><th>Role</th><th>Created</th><th>Uses</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {{range .Invites}}
+      <tr>
+        <td>{{.Role}}</td>
+        <td class="faint">{{.Created}}</td>
+        <td class="num">{{.Uses}}</td>
+        <td class="faint">{{.Expires}}</td>
+        <td>{{if .Revoked}}<span class="badge">revoked</span>{{else if .Usable}}<span class="badge badge--owner">active</span>{{else}}<span class="badge">expired</span>{{end}}</td>
+        <td>
+          {{if .Usable}}
+          <div class="form-row">
+            <button class="btn btn-sm btn-ghost" type="button" data-copy="{{.URL}}">copy</button>
+            <form method="post" action="/c/{{$.CrewID}}/invites/{{.Token}}/revoke" data-confirm="Revoke this invite?">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <button class="btn btn-sm btn-danger" type="submit">revoke</button>
+            </form>
+          </div>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{end}}
+{{end}}
+
+{{if .IsAdmin}}
+<section class="card">
+  <div class="card-head"><h2 class="card-title">Crew settings</h2></div>
+  <div class="card-body">
+    <form method="post" action="/c/{{.CrewID}}/settings">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="form-row">
+        <div class="field">
+          <label for="set-name">Name</label>
+          <input type="text" id="set-name" name="name" value="{{.Crew.Name}}" maxlength="80" required>
+        </div>
+        <div class="field">
+          <label for="set-country">Store region</label>
+          <input type="text" id="set-country" name="country" value="{{.Crew.Country}}" size="3" maxlength="2">
+        </div>
+        <div class="field">
+          <label for="set-language">Store language</label>
+          <input type="text" id="set-language" name="language" value="{{.Crew.Language}}" maxlength="32">
+        </div>
+      </div>
+      <p class="muted">Changing the region changes every price. Cached prices for the new region are fetched as pages are opened.</p>
+      <div class="form-actions"><button class="btn" type="submit">Save settings</button></div>
+    </form>
+  </div>
+</section>
+{{end}}
+
+{{if .IsOwner}}
+<section class="card card--danger">
+  <div class="card-head"><h2 class="card-title">Delete this crew</h2></div>
+  <div class="card-body">
+    <p class="muted">Deletes the list, the votes and every invite. There is no undo.</p>
+    <form method="post" action="/c/{{.CrewID}}/delete" data-confirm="Delete {{.Crew.Name}} and its whole list?">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="btn btn-danger" type="submit">Delete crew</button>
+    </form>
+  </div>
+</section>
+{{end}}
+{{end}}

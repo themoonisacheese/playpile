@@ -1,0 +1,50 @@
+{{define "title"}}{{.Crew.Name}} — playpile{{end}}
+{{define "content"}}
+<section class="page-head">
+  <div>
+    <h1>{{.Crew.Name}} <span class="badge badge--{{.Role}}">{{.Role}}</span></h1>
+    <p class="muted">
+      {{.MemberCount}} {{plural .MemberCount "player" "players"}}
+      {{if .Summary.Currency}} · prices in {{currency .Summary.Currency}} ({{.Crew.Country}}){{end}}
+      · <a href="/c/{{.CrewID}}/members">people &amp; invites</a>
+    </p>
+  </div>
+  <div class="page-actions">
+    <form method="post" action="/c/{{.CrewID}}/refresh">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button class="btn btn-sm btn-ghost" type="submit">refresh prices</button>
+    </form>
+    <span class="refresh-age muted">{{.DataAgeText}}</span>
+  </div>
+</section>
+
+<div class="summary" id="summary">{{template "summary" .}}</div>
+
+<div class="toolbar">
+  <form class="search" method="post" action="/c/{{.CrewID}}/entries"
+        data-search-url="/c/{{.CrewID}}/search" data-add-url="/c/{{.CrewID}}/entries"
+        autocomplete="off" role="search">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input class="search-input" type="text" name="q" placeholder="add a game from the Steam store…"
+           aria-label="Search the Steam store" autocomplete="off" spellcheck="false">
+    <div class="search-results"></div>
+  </form>
+  <div class="filters">
+    {{range .Filters}}<a class="filter{{if .Active}} is-active{{end}}" href="{{.Href}}">{{.Label}}{{if .Count}} <span class="faint">{{.Count}}</span>{{end}}</a>{{end}}
+  </div>
+</div>
+
+<div class="sorts muted">
+  sort:
+  {{range .Sorts}}<a class="filter{{if .Active}} is-active{{end}}" href="{{.Href}}">{{.Label}}</a>{{end}}
+</div>
+
+<div class="pile">
+  {{range .Entries}}{{template "entry" .}}{{else}}
+  <div class="empty">
+    <p class="empty-title">{{$.EmptyTitle}}</p>
+    <p class="empty-body">{{$.EmptyBody}}</p>
+  </div>
+  {{end}}
+</div>
+{{end}}

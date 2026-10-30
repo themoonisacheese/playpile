@@ -1,0 +1,114 @@
+{{- /* shared fragments: also rendered standalone for the JSON updates */ -}}
+
+{{define "summary"}}
+<div class="stat stat--total">
+  <span class="stat-label">the whole list</span>
+  <span class="stat-value num">{{.Summary.Total}}</span>
+  <span class="stat-sub">{{.Summary.Priced}} {{plural .Summary.Priced "game with a price" "games with a price"}}</span>
+</div>
+<div class="stat stat--me">
+  <span class="stat-label">for you</span>
+  <span class="stat-value num">{{.Summary.MyCost}}</span>
+  <span class="stat-sub">{{if .Summary.MissingForMe}}{{.Summary.MissingForMe}} you don't own yet{{else}}you own everything here{{end}}</span>
+</div>
+<div class="stat stat--group">
+  <span class="stat-label">for everyone</span>
+  <span class="stat-value num">{{.Summary.GroupCost}}</span>
+  <span class="stat-sub">if all {{.Summary.Members}} {{plural .Summary.Members "player" "players"}} buy what they're missing</span>
+</div>
+<div class="stat stat--ready">
+  <span class="stat-label">playable now</span>
+  <span class="stat-value num">{{.Summary.Ready}}</span>
+  <span class="stat-sub">owned by all {{.Summary.Members}} {{plural .Summary.Members "player" "players"}}</span>
+</div>
+{{if .Summary.Note}}<p class="summary-note muted">{{.Summary.Note}}</p>{{end}}
+{{end}}
+
+{{define "owners"}}
+<div class="owners">
+  <div class="owners-row">
+    {{range .Owners}}<span class="owner{{if .IsMe}} owner--me{{end}}" title="{{.Name}}">{{.Initial}}</span>{{end}}
+    {{if gt .MoreOwners 0}}<span class="owner owner--more">+{{.MoreOwners}}</span>{{end}}
+  </div>
+  <span class="owners-label">{{.OwnerCount}} of {{.MemberCount}} own it</span>
+</div>
+{{end}}
+
+{{define "mine"}}
+<div class="entry-mine{{if .OwnedByMe}} is-owned{{end}}">
+  {{if .OwnedByMe}}<span class="is-owned">you own this</span>
+  {{else if .IsFree}}<span>free to play</span>
+  {{else if .CostForMe}}<span>you'd pay <strong class="num">{{.CostForMe}}</strong></span>
+  {{else}}<span class="muted">no price here</span>{{end}}
+  <form method="post" action="/c/{{.CrewID}}/entries/{{.ID}}/own" data-ajax data-entry="{{.ID}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="owned" value="{{if .OwnedByMe}}0{{else}}1{{end}}">
+    <button class="btn btn-sm btn-ghost" type="submit">{{if .OwnedByMe}}I don't own it{{else}}I own this{{end}}</button>
+  </form>
+</div>
+{{end}}
+
+{{define "vote"}}
+<div class="vote">
+  <form method="post" action="/c/{{.CrewID}}/entries/{{.ID}}/vote" data-ajax data-entry="{{.ID}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="value" value="1">
+    <button class="vote-btn up" type="submit" aria-pressed="{{if eq .MyVote 1}}true{{else}}false{{end}}" aria-label="Vote to play it" title="vote to play it">&#9650;</button>
+  </form>
+  <span class="vote-score num" data-sign="{{.ScoreSign}}">{{.Score}}</span>
+  <form method="post" action="/c/{{.CrewID}}/entries/{{.ID}}/vote" data-ajax data-entry="{{.ID}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="value" value="-1">
+    <button class="vote-btn down" type="submit" aria-pressed="{{if eq .MyVote -1}}true{{else}}false{{end}}" aria-label="Vote against" title="vote against">&#9660;</button>
+  </form>
+</div>
+{{end}}
+
+{{define "entry"}}
+<article class="entry{{if .Played}} is-played{{end}}" id="e{{.ID}}">
+  <a class="entry-cover" href="{{.URL}}">
+    {{if .Cover}}<img src="{{.Cover}}" alt="" loading="lazy">{{end}}
+  </a>
+  <div class="entry-main">
+    <a class="entry-title" href="{{.URL}}">{{.Name}}</a>
+    {{if .Sub}}<div class="entry-sub">{{.Sub}}</div>{{end}}
+    <div class="entry-meta">
+      {{if .MetaScore}}<span class="chip chip--meta {{.MetaClass}}" title="Metascore">MC {{.MetaScore}}</span>{{end}}
+      {{if .ReviewDesc}}<span class="chip chip--review {{.ReviewClass}}" title="{{.ReviewCount}} Steam reviews">{{.ReviewDesc}} {{.ReviewPct}}%</span>
+      {{else if .ReviewCount}}<span class="chip chip--review">{{.ReviewCount}} reviews</span>{{end}}
+      {{if .Discount}}<span class="chip chip--discount">-{{.Discount}}%</span>{{end}}
+      {{if .IsFree}}<span class="chip chip--free">free</span>
+      {{else if .PriceLabel}}<span class="chip chip--price">{{.PriceLabel}}</span>{{end}}
+      {{if .ComingSoon}}<span class="chip chip--soon">coming soon</span>{{end}}
+      {{if .OwnedByMe}}<span class="chip chip--owned">you own it</span>{{end}}
+      {{if and (not .OwnedByAll) (gt .Missing 0)}}<span class="chip chip--missing">{{.Missing}} without</span>{{end}}
+      {{if .MyVote}}<span class="chip chip--voted">your vote</span>{{end}}
+      {{if not .Available}}<span class="chip chip--soon">no store data</span>{{end}}
+    </div>
+    {{if .Note}}<p class="entry-note">{{.Note}}</p>{{end}}
+    <div class="entry-actions">
+      <form method="post" action="/c/{{.CrewID}}/entries/{{.ID}}/note">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input class="note-input" type="text" name="note" value="{{.Note}}" placeholder="crew note…" aria-label="Note about {{.Name}}" maxlength="280">
+        <button class="btn btn-sm btn-ghost" type="submit">note</button>
+      </form>
+      <form method="post" action="/c/{{.CrewID}}/entries/{{.ID}}/status">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="status" value="{{if .Played}}active{{else}}played{{end}}">
+        <button class="btn btn-sm btn-ghost" type="submit">{{if .Played}}back on the list{{else}}played it{{end}}</button>
+      </form>
+      {{if .CanRemove}}
+      <form method="post" action="/c/{{.CrewID}}/entries/{{.ID}}/delete" data-confirm="Remove {{.Name}} from the list?">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button class="btn btn-sm btn-danger" type="submit">remove</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+  <div class="entry-side">
+    {{template "vote" .}}
+    {{template "owners" .}}
+    {{template "mine" .}}
+  </div>
+</article>
+{{end}}

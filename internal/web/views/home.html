@@ -1,0 +1,132 @@
+{{define "title"}}playpile — pick the next game together{{end}}
+{{define "content"}}
+{{if .LoggedIn}}
+
+  <section class="page-head">
+    <div>
+      <h1>Your crews</h1>
+      <p class="muted">One list per group of people. Everything here is shared with the crew you open.</p>
+    </div>
+  </section>
+
+  {{if .Crews}}
+  <div class="grid grid--3">
+    {{range .Crews}}
+    <a class="card crew-card" href="/c/{{.ID}}">
+      <div class="card-body">
+        <h2 class="card-title">{{.Name}}</h2>
+        <p class="muted">{{.Members}} {{plural .Members "player" "players"}} · {{.Entries}} {{plural .Entries "game" "games"}} on the list</p>
+      </div>
+    </a>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="empty">
+    <p class="empty-title">No crews yet</p>
+    <p class="empty-body">Make one below, then send your friends the invite link.</p>
+  </div>
+  {{end}}
+
+  <div class="grid">
+    <section class="card">
+      <div class="card-head"><h2 class="card-title">Start a crew</h2></div>
+      <div class="card-body">
+        <form method="post" action="/crews">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <div class="form-row">
+            <div class="field">
+              <label for="crew-name">Name</label>
+              <input type="text" id="crew-name" name="name" placeholder="Friday night" maxlength="80" required>
+            </div>
+            <div class="field">
+              <label for="crew-country">Store region</label>
+              <input type="text" id="crew-country" name="country" value="{{.DefaultCountry}}" size="3" maxlength="2" placeholder="US">
+            </div>
+          </div>
+          <p class="muted">The region decides which prices you see, e.g. <span class="mono">US</span>, <span class="mono">PL</span>, <span class="mono">DE</span>.</p>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Create crew</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2 class="card-title">Your account</h2></div>
+      <div class="card-body">
+        <form method="post" action="/profile">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <div class="field">
+            <label for="display-name">Name your crew sees</label>
+            <input type="text" id="display-name" name="name" value="{{.User.DisplayName}}" maxlength="80" required>
+          </div>
+          <div class="form-actions">
+            <button class="btn" type="submit">Save name</button>
+          </div>
+        </form>
+        {{if .User.ProfileURL}}<p class="muted">Steam profile: <a href="{{.User.ProfileURL}}" rel="nofollow noreferrer">{{.User.SteamID}}</a></p>{{end}}
+        {{if .SteamAPIKey}}
+        <form method="post" action="/library/refresh">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <p class="muted">Import which games you already own from your Steam library (needs a public profile).</p>
+          <button class="btn btn-ghost btn-sm" type="submit">Import my library</button>
+        </form>
+        {{end}}
+      </div>
+    </section>
+  </div>
+
+{{else}}
+
+  <section class="hero">
+    <h1>Pick the next game together.</h1>
+    <p class="lede">One shared list for your group. Add games, vote them up or down, mark what you already own, and see what it would cost — for you, and for everyone.</p>
+    <div class="hero-actions">
+      <a class="btn btn-steam" href="/login">Sign in through Steam</a>
+    </div>
+    <ul class="hero-points">
+      <li>A single list everybody can see and argue about</li>
+      <li>Prices, Metascores and Steam review summaries in one row</li>
+      <li>Three totals: the whole list, your share, and the group's bill</li>
+      <li>Invite links with roles — permission lives on the server, not in the browser</li>
+    </ul>
+  </section>
+
+  <div class="grid grid--3">
+    <section class="card"><div class="card-body">
+      <h2 class="card-title">Add</h2>
+      <p class="muted">Search the Steam store and drop a game on the list. Prices follow the crew's region.</p>
+    </div></section>
+    <section class="card"><div class="card-body">
+      <h2 class="card-title">Vote</h2>
+      <p class="muted">Up or down, one vote each. The list sorts itself so the group's favourite floats up.</p>
+    </div></section>
+    <section class="card"><div class="card-body">
+      <h2 class="card-title">Settle up</h2>
+      <p class="muted">Mark what you own. playpile works out who still has to buy what, and what that costs.</p>
+    </div></section>
+  </div>
+
+  {{if .DevLogin}}
+  <div class="card">
+    <div class="card-head"><h2 class="card-title">Local dev login</h2></div>
+    <div class="card-body">
+      <form method="post" action="/dev-login">
+        <div class="form-row">
+          <div class="field">
+            <label for="dev-name">Display name</label>
+            <input type="text" id="dev-name" name="name" placeholder="Ada" required>
+          </div>
+          <div class="field">
+            <label for="dev-id">Fake SteamID (reuse it to sign back in)</label>
+            <input type="text" id="dev-id" name="steamid" placeholder="dev-adler">
+          </div>
+        </div>
+        <div class="form-actions"><button class="btn" type="submit">Sign in without Steam</button></div>
+      </form>
+    </div>
+  </div>
+  {{end}}
+
+{{end}}
+{{end}}

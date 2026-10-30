@@ -1,0 +1,46 @@
+{{define "title"}}{{.Game.Name}} — {{.Crew.Name}}{{end}}
+{{define "content"}}
+<p class="muted"><a href="{{.BackHref}}">← back to the list</a></p>
+
+<div class="gamedetail">
+  {{if .Game.Cover}}<img class="detail-cover" src="{{.Game.Cover}}" alt="" loading="lazy">{{end}}
+  <div class="detail-body">
+    <h1 class="detail-title">{{.Game.Name}}</h1>
+    <div class="detail-meta">
+      {{if .Game.MetaScore}}<span class="chip chip--meta {{.Entry.MetaClass}}">MC {{.Game.MetaScore}}</span>{{end}}
+      {{if .Game.ReviewDesc}}<span class="chip chip--review {{.Entry.ReviewClass}}">{{.Game.ReviewDesc}} {{.Game.ReviewPct}}% of {{.Game.ReviewTotal}}</span>{{end}}
+      {{if .Game.IsFree}}<span class="chip chip--free">free</span>{{else if .Game.PriceLabel}}<span class="chip chip--price">{{.Game.PriceLabel}}</span>{{end}}
+      {{if .Game.Release}}<span class="chip">{{.Game.Release}}</span>{{end}}
+    </div>
+
+    {{if .Game.Short}}<p class="detail-desc">{{.Game.Short}}</p>{{end}}
+
+    <div class="detail-side">
+      <div class="summary" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div class="stat stat--me">
+          <span class="stat-label">for you</span>
+          <span class="stat-value num">{{if .Entry.OwnedByMe}}owned{{else if .Entry.CostForMe}}{{.Entry.CostForMe}}{{else if .Game.IsFree}}free{{else}}—{{end}}</span>
+          <span class="stat-sub">{{if .Entry.OwnedByMe}}nothing to buy{{else if .Entry.CostForMe}}you don't own it{{else}}no price in this region{{end}}</span>
+        </div>
+        <div class="stat stat--ready">
+          <span class="stat-label">in the crew</span>
+          <span class="stat-value num">{{.Entry.OwnerCount}}/{{.Entry.MemberCount}}</span>
+          <span class="stat-sub">own it</span>
+        </div>
+      </div>
+      {{template "vote" .Entry}}
+      {{template "owners" .Entry}}
+      {{template "mine" .Entry}}
+    </div>
+
+    <dl class="detail-facts">
+      {{if .Game.Devs}}<dt>Developer</dt><dd>{{.Game.Devs}}</dd>{{end}}
+      {{if .Game.Pubs}}<dt>Publisher</dt><dd>{{.Game.Pubs}}</dd>{{end}}
+      {{if .Game.Genres}}<dt>Genres</dt><dd>{{.Game.Genres}}</dd>{{end}}
+      {{if .Game.Platforms}}<dt>Platforms</dt><dd>{{.Game.Platforms}}</dd>{{end}}
+      <dt>Steam</dt><dd><a href="https://store.steampowered.com/app/{{.Entry.AppID}}" rel="nofollow noreferrer">store page</a>{{if .Game.MetaURL}} · <a href="{{.Game.MetaURL}}" rel="nofollow noreferrer">Metacritic</a>{{end}}</dd>
+      {{if .Entry.AddedBy}}<dt>Added by</dt><dd>{{.Entry.AddedBy}}</dd>{{end}}
+    </dl>
+  </div>
+</div>
+{{end}}

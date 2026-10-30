@@ -1,0 +1,31 @@
+[Unit]
+Description=playpile
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=playpile
+Group=playpile
+WorkingDirectory=/var/lib/playpile
+ExecStart=/usr/local/bin/playpile
+EnvironmentFile=/etc/playpile/playpile.env
+Restart=on-failure
+RestartSec=3
+
+# hardening: the binary only needs its data dir and outbound HTTPS
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/playpile
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

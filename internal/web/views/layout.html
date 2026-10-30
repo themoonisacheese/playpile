@@ -1,0 +1,47 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>{{template "title" .}}</title>
+<link rel="stylesheet" href="/static/app.css?v={{.Version}}">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="brand-dot"></span>playpile</a>
+    <nav class="top-nav">
+      {{if .LoggedIn}}<a href="/">your crews</a>{{end}}
+    </nav>
+    <div class="who">
+      {{if .LoggedIn}}
+        {{if .User.AvatarURL}}<img class="avatar" src="{{.User.AvatarURL}}" alt="" width="24" height="24">{{end}}
+        <span class="who-name">{{.User.DisplayName}}</span>
+        <form class="logout" method="post" action="/logout">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <button class="link" type="submit">sign out</button>
+        </form>
+      {{end}}
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    {{if .DevLogin}}<div class="flash flash--ok">Dev login is enabled on this instance. Never leave it on in production.</div>{{end}}
+    {{with .Flash}}{{if .Message}}<div class="flash flash--{{.Kind}}">{{.Message}}</div>{{end}}{{end}}
+    <div id="flash-slot"></div>
+    {{template "content" .}}
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap muted">
+    playpile <span class="faint">{{.Version}}</span> · prices, scores and reviews come from Steam and are refreshed periodically · not affiliated with Valve
+  </div>
+</footer>
+<script src="/static/app.js?v={{.Version}}" defer></script>
+</body>
+</html>{{end}}
