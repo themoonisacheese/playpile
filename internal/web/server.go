@@ -107,7 +107,7 @@ func New(cfg Config, st *store.Store, cat *catalog.Catalog, steam SteamAPI, log 
 		},
 	}
 
-	pages := []string{"home", "crew", "game", "members", "join", "error", "manual"}
+	pages := []string{"home", "crew", "game", "members", "join", "error", "manual", "schedule"}
 	s.pages = make(map[string]*template.Template, len(pages))
 	for _, p := range pages {
 		t, err := template.New("layout").Funcs(funcs).ParseFS(viewsFS, "views/layout.html", "views/_partials.html", "views/"+p+".html")
@@ -167,6 +167,11 @@ func (s *Server) routes() {
 	mux.HandleFunc("GET /c/{crew}", s.handleCrew)
 	mux.HandleFunc("GET /c/{crew}/search", s.handleSearch)
 	mux.HandleFunc("GET /c/{crew}/members", s.handleMembers)
+	mux.HandleFunc("GET /c/{crew}/schedule", s.handleSchedule)
+	mux.HandleFunc("POST /c/{crew}/schedule/availability", s.handleScheduleAvailability)
+	mux.HandleFunc("POST /c/{crew}/schedule/proposals", s.handleScheduleProposal)
+	mux.HandleFunc("POST /c/{crew}/schedule/proposals/{id}/rsvp", s.handleScheduleRSVP)
+	mux.HandleFunc("POST /c/{crew}/schedule/proposals/{id}/cancel", s.handleScheduleCancel)
 	mux.HandleFunc("POST /c/{crew}/settings", s.handleCrewSettings)
 	mux.HandleFunc("POST /c/{crew}/delete", s.handleDeleteCrew)
 	mux.HandleFunc("POST /c/{crew}/refresh", s.handleRefreshPrices)

@@ -213,6 +213,9 @@ func (s *Store) migrate() error {
 	if err := s.migrateEntriesManual(); err != nil {
 		return fmt.Errorf("migrate entries: %w", err)
 	}
+	if err := s.migrateScheduling(); err != nil {
+		return fmt.Errorf("migrate scheduling: %w", err)
+	}
 	return nil
 }
 

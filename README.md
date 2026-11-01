@@ -162,6 +162,7 @@ internal/steam/        Steam store/community HTTP client (retries, rate limit, s
 internal/catalog/      caching facade over the client, background revalidation
 internal/store/        SQLite schema, queries, permissions primitives
 internal/pile/         view model + the money math (the three totals)
+internal/schedule/     pure timezone and availability-window matching
 internal/web/          HTTP layer: routes, sessions, CSRF, handlers
 internal/web/views/    html/template files
 internal/web/static/   app.css and the small app.js enhancement
@@ -173,11 +174,38 @@ deploy/                systemd unit and env template
 Tests: `go test ./...` — store (permissions, invites, votes, ownership), pile (totals, filters,
 sorting), web (a full HTTP flow: login → crew → add → vote → own → invite → permission denials).
 
+## Find a time to play
+
+Open **find a time** from a crew. Choose your timezone, then mark availability
+for specific dates over the next two weeks. Each date can have several playable
+windows (including overnight), an explicit **checked — unavailable** answer, or
+no answer yet. Saving edits only that date; it does not create a weekly routine.
+
+Playpile suggests continuous whole-crew windows, with near matches shown
+separately and missing answers distinguished from known blockers. Choose a
+minimum of one, two or three hours. Use a suggestion or enter a time to propose
+a session; add an optional title/game and share its link in your usual chat.
+Upcoming sessions are visible up to 28 days ahead.
+Everyone RSVPs **yes / maybe / no** separately, including the person proposing.
+Only the creator or a crew admin can cancel, before the session starts.
+
+Times use an explicit IANA timezone (for example `Europe/Paris`). The browser
+can suggest yours, but never silently switches it. Clear saved future dates
+before changing your availability timezone. Invalid or ambiguous clock-change
+times are rejected rather than guessed. Session links use each recipient’s
+clock. All forms work without JavaScript.
+
+This is a lightweight planning tool, not a calendar archive: ended sessions and
+expired availability are cleaned up on subsequent scheduling writes. Weekly
+patterns and integrations can be added later on top of dated availability.
+See [scheduling design](docs/scheduling.md) for semantics, limits and tests.
+
 ## Deliberate limits
 
 - One instance, one database, no federation. A crew's data is yours; there is no sharing between
   instances.
-- No notifications, no scheduling, no game sessions/calendar — the list is the artefact.
+- No notifications, calendar integrations or recurring scheduling rules. Crew scheduling is
+  deliberately limited to dated availability and lightweight session proposals.
 - Prices are Steam's *current* price for the chosen region, not a historical low. There is no sale
   alerting.
 - Metacritic data comes from Steam's store API. Metacritic has no public API, so games Steam has no

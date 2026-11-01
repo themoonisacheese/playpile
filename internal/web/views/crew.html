@@ -6,6 +6,7 @@
     <p class="muted">
       {{.MemberCount}} {{plural .MemberCount "player" "players"}}
       {{if .Summary.Currency}} · prices in {{currency .Summary.Currency}} ({{.Crew.Country}}){{end}}
+      · <a href="/c/{{.CrewID}}/schedule">find a time</a>
       · <a href="/c/{{.CrewID}}/members">people &amp; invites</a>
     </p>
   </div>
