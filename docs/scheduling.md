@@ -1,120 +1,113 @@
 # Crew scheduling
 
-## Product model
+## The interface
 
-Scheduling answers “when can this crew play?” without turning Playpile into a
-calendar application. The foundation is availability on **specific dates**.
-Weekly patterns, if added later, should populate the same dated records; they
-must not introduce a second matching system or overwrite date-specific edits.
+The main screen is a **seven-day timetable**, not a date-by-date questionnaire.
+Members paint half-hour cells in one of three modes:
 
-Three concepts stay separate:
+- **Want to play**: positive interest, not an RSVP.
+- **Can’t play**: an explicit blocker for those minutes.
+- **Erase**: remove both marks; the time becomes unknown.
 
-1. **Availability:** a member has checked a date and marked playable windows,
-   or explicitly said they cannot play. An unanswered date is unknown.
-2. **Suggestions:** continuous overlapping windows derived from current crew
-   members’ availability. Whole-crew matches are distinguished from near matches.
-3. **Session proposals:** a particular time the crew can agree to. Each member
-   responds yes, maybe or no. No response means pending, never implicitly yes.
+Blank time is never assumed unavailable. Painting one evening must not mark the
+rest of that date as a no. Symbols and accessible labels accompany colour.
+Desktop supports dragging; phones select a day and tap slots while retaining
+normal scrolling. Keyboard users can focus a cell and paint with Space/Enter.
+The timetable scrolls internally, with all hours available. Saved partial-cell
+marks retain their exact minutes unless that cell is deliberately repainted.
 
-No recurring rules, calendar integrations, chat, background notifications or
-automatic booking in this first version.
+An explicit save applies only edited days, atomically. Unsaved paint stays
+visible if a save fails. Clock settings are secondary, and changing dates or
+settings must not silently discard edits. A native form fallback remains usable
+without JavaScript. A few readable suggestions follow the timetable; sessions
+and RSVPs remain separate below it.
 
-## Ownership and execution
+## Ownership
 
-- `internal/store`: additive SQLite schema, membership-scoped persistence,
-  atomic replacement, validity/permission rules, bounded retention.
-- `internal/schedule`: pure interval arithmetic and timezone/date validation.
-- `internal/web`: authenticated forms, CSRF, presentation, progressive
-  enhancement. It must not implement a second overlap algorithm.
+- `internal/schedule`: pure date/slot generation, interval painting and overlap.
+- `internal/store`: migration, bounds, member scope, atomic persistence,
+  compatibility and retention.
+- `internal/web`: server-generated cells, authenticated/CSRF-protected forms,
+  rendering, paint interactions and errors. No second matching algorithm.
 
-Matching runs only on the scheduling page, over a bounded planning window;
-normal pile rendering and voting acquire no scheduling work or network
-requests. No Steam calls are required by scheduling.
+Scheduling does not add work or Steam requests to game-list/vote requests.
+Recurrence, calendar integrations, chat and notifications remain out of scope.
+Future weekly patterns should populate these same dated marks, preserving
+per-date exceptions rather than introducing another matching engine.
 
 ## Time and matching
 
-The availability editor shows 14 dates in the member’s chosen IANA timezone. Upcoming
-proposals cover the full accepted 28-day horizon so saved sessions remain visible
-and manageable. UTC is the
-no-JavaScript fallback; JavaScript only offers the browser timezone, never
-silently changes it. A member’s saved timezone remains fixed while future
-answers (including overnight spillovers) exist. Clear those dated answers to
-switch zones. This avoids reinterpreting old civil dates when the clock changes.
+The editor covers today through six local dates ahead. Upcoming proposals cover
+28 elapsed days so every accepted session is visible and manageable. Each member
+uses an explicit IANA zone. The browser may suggest a zone but never silently
+changes it. Existing future marks keep their saved zone until explicitly cleared.
 
-Each date accepts up to eight windows. An explicitly checked date with no
-windows means unavailable; clearing a date makes it unknown. Overnight windows
-start on the chosen date and explicitly end the next day. Their spillover stays
-available even if the next date has an unavailable answer: the saved playable
-window takes precedence. Edit the source date to change that window.
+Slots are generated from actual civil-day bounds, advancing by 30 elapsed
+minutes. Clock-change days can have 46 or 50 cells; half-hour DST shifts can yield
+47 or 49. Repeated hours have distinct absolute keys and offset-bearing labels;
+nonexistent hours are not invented. Persistence and matching use absolute
+instants, not naive wall-clock subtraction. Suggestions carry exact instants
+through the proposal form; edited/manual times use strict local-time validation.
 
-Absolute instants are stored for arithmetic; timezone data is embedded for
-static deployments. Manual entry rejects nonexistent or repeated wall minutes
-at daylight-saving changes rather than guessing an occurrence. Dates can be
-23 or 25 hours long. Matching durations are elapsed time, not naive wall-clock
-subtraction. Suggestions preserve offset-bearing absolute instants through the
-proposal form, so a valid overlap can still be proposed during a repeated local
-hour. Editing the local fields restores strict manual parsing.
+A whole-crew suggestion requires continuous positive interest from every current
+member for the chosen duration. Explicit blockers take precedence over interest,
+including conflicting marks inherited from an older overnight answer. Someone
+missing positive coverage is a known blocker if any explicit no prevents the
+whole window; otherwise they still need to answer. Brief extra attendees must
+not hide longer useful windows for a stable subgroup.
 
-Matching normalizes each member’s interval unions, then considers anchors at
-window starts and at ends minus the requested duration, extending each fixed
-participant group’s common intersection. This finds whole-crew intersections
-and useful longer subgroup windows without enumerating every subset of the
-crew. It is deliberately not an exhaustive subgroup optimizer. Contained
-same-group suggestions are removed, full-crew matches rank first, and the page
-shows at most 24 suggestions. Near matches require two continuously available
-people (a one-person crew can still get whole-crew windows).
+Matching normalizes interval unions and considers starts/end-minus-duration
+anchors, extending fixed groups’ common intersections. It is not exhaustive
+subset search. Binary-search coverage, participant-keyed containment and
+post-limit classification avoid the former all-candidate cross-group scan.
+Results are bounded and ranked full crew first; only a few are initially shown.
 
-Normalized coverage uses binary search. Containment checks are indexed by
-participant tuple rather than comparing unrelated groups, and only the final
-ranked/limited results receive missing-member classifications. With 14 days ×
-two staggered windows per member, an independent local check measured about
-3.4 ms for 10 members and 125 ms for 100, versus 138 ms and 17.4 s before this
-optimization. These are fixture timings, not service latency guarantees; there
-is no crew-member cap and matching is not a constant-time operation.
+## Persistence and compatibility
 
-Every suggestion’s participants can attend the **entire** window. A missing
-member is “cannot make the whole window” if any explicitly unavailable portion
-blocks it; otherwise they still need to answer part or all of it. A brief third
-person joining must not hide a longer playable session for the other two.
+Legacy full-day answers and new partial-day marks are distinguished explicitly:
+`availability_days.blocked == ''` means the old reviewed-day representation;
+a JSON array means explicit slot blockers, with all other unmarked time unknown.
+The positive `windows` field remains compatible. New saves validate wants and
+blockers for overlap, local-date bounds, whole-second precision and bounded counts.
 
-## Permissions, lifetime and storage
+The slot batch API accepts at most seven unique dates in one saved zone. Actor
+identity comes from the authenticated session, never a submitted user ID. Invalid
+batches change nothing, including when a later date is invalid. Untouched game,
+vote, ownership, membership, proposal and RSVP data must remain unchanged.
+Compatibility handling preserves exact legacy boundaries and overnight tails;
+repainting or erasing a displayed tail must not leave a hidden source interval.
 
-- A member edits only their own availability and responses. Actor identity
-  comes from the authenticated session, never a submitted user ID.
-- All scheduling POSTs require a real form CSRF token and have a 32 KiB body cap.
-- Only a proposal’s creator or a current crew admin can cancel it. Cross-crew
-  IDs grant no authority. RSVP/cancel is allowed before the start time only.
-- Availability is not an RSVP. The creator also starts pending. Changes to
-  availability do not silently modify proposals or responses.
-- Membership removal cascades the member’s availability, timezone preference
-  and RSVPs; they do not reappear on rejoining. Proposals created by the removed
-  member also disappear, along with their responses.
-- Invalid writes leave previous availability intact. Day replacement is atomic.
-- Store reads accept a maximum 28-day interval; writes accept today through
-  27 dates ahead in the member’s zone. A window is at most 24 elapsed hours.
-- Proposals are future, at most 12 hours long, end within 28 days, and accept an
-  optional plain-text title up to 160 characters. There are at most 64 retained
-  proposals per crew, counting cancellations. Long availability suggestions
-  prefill at most 12 hours for a proposal; the visible availability is unchanged.
-- Expired availability and ended proposals are pruned opportunistically on
-  scheduling writes, using expiry indexes. There is no growing session archive.
-  An idle instance may retain expired rows until its next scheduling mutation.
-- The migration creates new tables and indexes without rewriting games, votes,
-  ownership, memberships or browser sessions. Back up before upgrading as usual.
-  Older binaries ignore the additive scheduling tables, but do not prune them.
+Store reads/writes retain a 28-day planning bound. Scheduling records expire;
+indexed cleanup runs on scheduling mutations. Idle instances may retain expired
+rows until their next mutation. This is not a permanent session archive.
+
+## Sessions and trust boundaries
+
+- Availability never counts as attendance; the proposer also starts pending.
+- RSVP is yes/maybe/no, or pending when cleared. Only your own response changes.
+- Current creator/admin can cancel before the start. Other crew IDs grant no
+  authority. Shared links use the recipient’s own clock.
+- Proposals are future, at most 12 hours long, end within 28 days and accept an
+  optional 160-character title/game label. At most 64 are retained per crew,
+  including cancellations.
+- Removal from a crew cascades saved marks, planning preferences and RSVPs;
+  creator-owned proposals also disappear. Rejoining restores none of them.
+- All scheduling mutations require a real CSRF token and bounded form bodies.
+- Back up before deployment. The blocker-column migration preserves old saved
+  answers and all unrelated tables. Do not run an older binary against new slot
+  data: old code would interpret blank portions as reviewed/unavailable; restore
+  the previous database backup along with the previous binary for a full rollback.
 
 ## Verification
 
-Unit tests cover boundaries, continuous participant identities, unknown versus
-unavailable, duration thresholds, midnight and DST. An independent deterministic
-randomized oracle checks 250 schedules against discrete availability states,
-including full-crew coverage and every returned classification. Store tests
-cover migration/reopen, invalid-write atomicity, membership cascades, scoped
-proposals/RSVPs, cancellation and retention limits/cleanup. HTTP tests use real
-login/crew/forms and test outsiders, forged IDs, CSRF, invalid time input and
-no-JavaScript operation.
+Keep existing security/RSVP/upgrade tests. Add explicit want/cannot/unknown,
+blocker precedence, exact partial-cell preservation, legacy overnight edit/erase,
+atomic multi-day failure, half-hour keys, DST gaps/repeats and seven-day limits.
+An independent deterministic oracle checks 250 legacy and 250 explicit-blocker
+schedules, including conflicts where a blocker must override a positive mark.
 
-Before pushing: run `go test -race -count=1 ./...`, `go vet ./...`, JavaScript
-syntax checks, a sandboxed desktop/mobile browser walkthrough, and an independent
-read-only review of tracked and untracked files. Exact release results belong
-in the implementation report rather than an unchecked checklist.
+Before pushing, run the full race-enabled Go suite, vet, JS syntax and interaction
+checks. Use sandboxed Chromium for actual desktop dragging, erasing, keyboard,
+mobile day selection/scrolling, failed saves and no-JavaScript operation. Review
+the rendered screen at desktop and phone widths, not merely the template source.
+An independent final review must cover both tracked and new files.

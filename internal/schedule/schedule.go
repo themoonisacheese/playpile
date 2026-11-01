@@ -11,8 +11,8 @@ import (
 
 type Interval struct{ Start, End time.Time }
 type MemberAvailability struct {
-	UserID            int64
-	Windows, Reviewed []Interval
+	UserID                     int64
+	Windows, Reviewed, Blocked []Interval
 }
 type Suggestion struct {
 	Start, End                         time.Time
@@ -51,6 +51,25 @@ func DayBounds(date, zone string) (Interval, error) {
 		return Interval{}, errors.New("nonexistent civil date")
 	}
 	return Interval{start.UTC(), end.UTC()}, nil
+}
+
+// DaySlots partitions a civil day into absolute elapsed half-hour cells. Repeated
+// wall-clock labels retain distinct instants; nonexistent wall times are skipped.
+func DaySlots(date, zone string) ([]Interval, error) {
+	bounds, err := DayBounds(date, zone)
+	if err != nil {
+		return nil, err
+	}
+	var out []Interval
+	for start := bounds.Start; start.Before(bounds.End); {
+		end := start.Add(30 * time.Minute)
+		if end.After(bounds.End) {
+			end = bounds.End
+		}
+		out = append(out, Interval{start, end})
+		start = end
+	}
+	return out, nil
 }
 
 // wall refuses both nonexistent and repeated wall minutes: choose an unambiguous
@@ -148,6 +167,8 @@ func Suggestions(members []MemberAvailability, from, to time.Time, min time.Dura
 	anchors := []time.Time{from, to.Add(-min)}
 	for i := range members {
 		members[i].Windows = normalize(members[i].Windows, from, to)
+		members[i].Blocked = normalize(members[i].Blocked, from, to)
+		members[i].Windows = subtract(members[i].Windows, members[i].Blocked)
 		members[i].Reviewed = normalize(members[i].Reviewed, from, to)
 		for _, w := range members[i].Windows {
 			anchors = append(anchors, w.Start, w.End.Add(-min))
@@ -247,7 +268,7 @@ func Suggestions(members []MemberAvailability, from, to time.Time, min time.Dura
 			if idx < len(s.Participants) && s.Participants[idx] == m.UserID {
 				continue
 			}
-			blocked := false
+			blocked := overlaps(m.Blocked, s.Start, s.End)
 			for _, r := range m.Reviewed {
 				a, b := r.Start, r.End
 				if a.Before(s.Start) {

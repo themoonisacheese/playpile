@@ -2,35 +2,59 @@
 {{define "content"}}
 <link rel="stylesheet" href="/static/schedule.css?v={{.Version}}">
 <div class="schedule" data-schedule>
-<section class="page-head"><div><p class="muted"><a href="/c/{{.CrewID}}">← {{.Crew.Name}}</a> · <a href="/c/{{.CrewID}}/members">people &amp; invites</a></p><h1>Find a time <span class="kao">( ˘ᴗ˘ )</span></h1><p class="muted">The next 14 days. Availability is a possibility, not a commitment.</p></div></section>
-{{if .Error}}<div class="flash flash--error" role="alert">{{.Error}}</div>{{end}}
-<section class="panel" aria-labelledby="zone-heading"><h2 id="zone-heading">Your clock, clearly</h2>
-<form method="get" action="/c/{{.CrewID}}/schedule" class="schedule-inline">
+<header class="schedule-head"><div><p class="muted"><a href="/c/{{.CrewID}}">← {{.Crew.Name}}</a></p><h1>When shall we play? <span class="kao">( ˘ᴗ˘ )</span></h1><p class="muted">The next 7 days · your clock: <strong>{{.Zone}}</strong></p></div>
+<details class="clock-settings"><summary>Clock &amp; settings</summary>
+<form method="get" action="/c/{{.CrewID}}/schedule" class="schedule-inline" data-settings>
 <label>Timezone (IANA name)<input type="text" name="tz" value="{{.Zone}}" data-timezone list="schedule-zones" maxlength="100" required></label>
 <datalist id="schedule-zones"><option value="UTC"><option value="Europe/Paris"><option value="Europe/London"><option value="America/New_York"><option value="America/Los_Angeles"><option value="Asia/Tokyo"><option value="Australia/Sydney"></datalist>
 <label>Minimum shared time<select name="duration"><option value="1" {{if eq .Duration "1"}}selected{{end}}>1 hour</option><option value="2" {{if eq .Duration "2"}}selected{{end}}>2 hours</option><option value="3" {{if eq .Duration "3"}}selected{{end}}>3 hours</option></select></label>
 <button class="btn btn-ghost">Update view</button><button type="button" class="btn btn-sm btn-ghost" data-detected-zone hidden></button></form>
-<p class="muted">All times below are in <strong>{{.Zone}}</strong>. UTC works without JavaScript. Saving locks your availability timezone while future answers exist; clear those dated answers before saving in another timezone.</p></section>
-<div class="schedule-columns">
-<section class="panel" aria-labelledby="availability-heading"><h2 id="availability-heading">Your availability</h2><p class="muted">Select a day to edit. Unknown means you have not answered; unavailable means you checked and cannot play.</p>
-<ul class="schedule-days">{{range .Days}}<li><a href="{{.EditURL}}#day-editor">{{.Label}}</a><span class="schedule-state">{{.State}}</span></li>{{end}}</ul>
-<div id="day-editor"><h3>Edit one day</h3>
-<form method="post" action="/c/{{.CrewID}}/schedule/availability">
-<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="tz" value="{{.Zone}}"><input type="hidden" name="duration" value="{{.Duration}}">
-<label>Date<input type="date" name="date" value="{{.Fields.Date}}" min="{{.MinDate}}" max="{{.MaxDate}}" required></label>
-<label>Answer<select name="status" required><option value="" {{if eq .Fields.Status ""}}selected{{end}}>Choose an answer</option><option value="available" {{if eq .Fields.Status "available"}}selected{{end}}>Available in these windows</option><option value="unavailable" {{if eq .Fields.Status "unavailable"}}selected{{end}}>Checked — unavailable all day</option><option value="unknown" {{if eq .Fields.Status "unknown"}}selected{{end}}>Clear answer — unknown</option></select></label>
-<p class="muted">Use one or more windows when available; leave unused rows blank. For overnight play, explicitly tick “ends next day”. Saving replaces only this date's answer. Overnight windows belong to their start date; edit that date to remove early-hours availability, even if the next date is marked unavailable.</p>
-{{range $i,$window := .Fields.Windows}}{{if eq $i 1}}<details {{if $.MoreWindows}}open{{end}}><summary>More windows (up to 8 per day)</summary>{{end}}<fieldset class="schedule-window"><legend>Window (optional)</legend><div class="schedule-inline"><label>From<input type="time" name="start" value="{{$window.Start}}"></label><label>Until<input type="time" name="end" value="{{$window.End}}"></label></div><label class="schedule-check"><input type="checkbox" name="overnight{{$i}}" value="1" {{if $window.Overnight}}checked{{end}}>Ends next day</label></fieldset>{{end}}</details>
-<button class="btn btn-primary">Save this day</button></form>
-<details><summary>Clear another saved date</summary><p class="muted">To change timezone, all future answers must be cleared. An overnight answer starting yesterday can still affect today: clear its original start date here. This only removes your answer; it never adds availability.</p>
+<p class="muted">Saved answers keep their timezone. Clear future dated answers before changing it. UTC works without JavaScript.</p>
+<details><summary>Clear another saved date</summary><p class="muted">An overnight answer belongs to its original start date. Clear that date to remove its early-hours spillover.</p>
 <form method="post" action="/c/{{.CrewID}}/schedule/availability"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="tz" value="{{.Zone}}"><input type="hidden" name="duration" value="{{.Duration}}"><input type="hidden" name="status" value="unknown"><label>Original saved date<input type="date" name="date" required></label><button class="btn btn-sm btn-ghost">Clear this dated answer</button></form></details>
-</div></section>
-<div class="schedule">
-<section class="panel" aria-labelledby="whole-heading"><h2 id="whole-heading">Whole-crew windows</h2><p class="muted">Continuous time that everyone marked available. Not an RSVP.</p>
-{{range .Whole}}{{template "schedule-candidate" (.)}}{{else}}<p class="schedule-empty">No whole-crew window yet. Add your availability and ask the crew to fill theirs in.</p>{{end}}</section>
-<section class="panel" aria-labelledby="near-heading"><h2 id="near-heading">Near matches</h2><p class="muted">These are not whole-crew matches. People needing answers for part or all of the window are separate from people who cannot make the whole window.</p>
-{{range .Near}}{{template "schedule-candidate" (.)}}{{else}}<p class="schedule-empty">No near matches yet for this duration.</p>{{end}}</section>
-<section class="panel" id="propose" aria-labelledby="proposal-heading"><h2 id="proposal-heading">Propose a session</h2><p class="muted">Choose a suggested window above, or enter a time yourself. Suggestions prefill up to 12 hours; adjust before proposing. Everyone RSVPs separately.</p>
+</details></header>
+{{if .Error}}<div class="flash flash--error" role="alert">{{.Error}}</div>
+{{if .Fields.Status}}<details open><summary>Previous form values (legacy request)</summary><label>Date<input value="{{.Fields.Date}}" readonly></label>{{range .Fields.Windows}}{{if .Start}}<label>From<input value="{{.Start}}" readonly></label><label>Until<input value="{{.End}}" readonly></label>{{end}}{{end}}</details>{{end}}{{end}}
+<section class="panel timetable-panel" data-min="{{.MinDate}}" data-max="{{.MaxDate}}" aria-labelledby="availability-heading">
+<div class="schedule-section-head"><div><h2 id="availability-heading">Your week, at a glance</h2><p class="muted">Paint a little time for your crew. Blank = not answered, never a no.</p></div><span class="schedule-chip">30-minute slots</span></div>
+<div data-paint-editor hidden>
+<div class="paint-toolbar" role="group" aria-label="Paint mode">
+<button type="button" class="btn paint-mode mode-want" data-mode="want" aria-pressed="true">✓ Want to play</button>
+<button type="button" class="btn paint-mode mode-cant" data-mode="cant" aria-pressed="false">× Can't play</button>
+<button type="button" class="btn paint-mode mode-unknown" data-mode="unknown" aria-pressed="false">⌫ Erase</button>
+</div>
+<p class="paint-help paint-help--desktop muted">Drag to paint. Keyboard: focus a slot, then Space or Enter. ◐ = a saved partial slot; unchanged minutes stay intact.</p>
+<p class="paint-help paint-help--mobile muted">Tap to paint. Swipe to scroll.</p>
+<div class="day-tabs" role="group" aria-label="Choose a day">{{range $i,$day := .Days}}<button type="button" class="btn btn-sm btn-ghost" data-day-tab="{{$day.Date}}" aria-pressed="{{eq $i 0}}">{{$day.ShortLabel}}</button>{{end}}</div>
+<div class="week-scroll" data-week-scroll tabindex="0" aria-label="Your next seven days, scroll for all hours">
+<div class="week-grid">{{range $i,$day := .Days}}<section class="day-column {{if eq $i 0}}selected-day{{end}}" data-day="{{$day.Date}}" aria-label="{{$day.Label}}">
+<header class="day-heading"><strong>{{$day.Label}}</strong><button type="button" data-clear-day="{{$day.Date}}" class="clear-day">Clear day</button></header>
+
+{{range $day.Slots}}<button type="button" class="time-slot" data-slot="{{.Start}}" data-state="{{.State}}" data-original="{{.State}}" aria-label="{{.Label}}: {{.State}}" title="{{.Label}}: {{.State}}"><span class="slot-time">{{.Time}}</span><span class="slot-symbol" aria-hidden="true">{{.Symbol}}</span></button>{{end}}
+</section>{{end}}</div></div>
+<form method="post" action="/c/{{.CrewID}}/schedule/slots" data-slot-save>
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="tz" value="{{.Zone}}"><input type="hidden" name="duration" value="{{.Duration}}">
+<div class="save-bar"><button class="btn btn-primary" data-save-button disabled>Save changes</button><span role="status" aria-live="polite" data-save-status>Saved · no changes</span></div>
+</form><p class="save-error" role="alert" data-save-error hidden></p>
+</div>
+<details class="native-editor" data-native-editor {{if .Error}}open{{end}}><summary>Edit slots without the paint tool</summary><p class="muted">Choose a day, change only the slots you want, then save that day. “Keep saved answer” leaves the exact original minutes untouched. Unknown — not answered is the default for blank time.</p>
+{{range .Days}}<details {{if and $.Error (eq $.Fields.Date .Date)}}open{{end}}><summary>{{.Label}} · {{.State}}</summary>
+
+<form method="post" action="/c/{{$.CrewID}}/schedule/slots"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="tz" value="{{$.Zone}}"><input type="hidden" name="duration" value="{{$.Duration}}"><input type="hidden" name="date" value="{{.Date}}">
+<div class="native-slots">{{range .Slots}}<label>{{.Label}} · {{.State}}<select name="slot:{{.Start}}"><option value="" {{if eq .Draft ""}}selected{{end}}>Keep saved answer</option><option value="want" {{if eq .Draft "want"}}selected{{end}}>✓ Want to play</option><option value="cant" {{if eq .Draft "cant"}}selected{{end}}>× Can't play</option><option value="unknown" {{if eq .Draft "unknown"}}selected{{end}}>Erase — unknown</option></select></label>{{end}}</div><button class="btn btn-primary">Save this day</button></form></details>{{end}}
+</details></section>
+<section class="panel" aria-labelledby="suggestions-heading"><div class="schedule-section-head"><div><h2 id="suggestions-heading">A few good times</h2><p class="muted">Wants are possibilities, not RSVPs. A “can't” rules out a whole-crew match.</p></div></div>
+<h3>Whole-crew windows</h3>{{range .Whole}}{{template "schedule-candidate" .}}{{else}}<p class="schedule-empty">No whole-crew window yet. Mark when you want to play and ask your crew to do the same.</p>{{end}}
+{{if .MoreWhole}}<details><summary>More whole-crew windows</summary>{{range .MoreWhole}}{{template "schedule-candidate" .}}{{end}}</details>{{end}}
+<h3 class="near-heading">Other options</h3>{{range .Near}}{{template "schedule-candidate" .}}{{else}}<p class="schedule-empty">No near matches yet for this duration.</p>{{end}}
+{{if .MoreNear}}<details><summary>More near matches</summary>{{range .MoreNear}}{{template "schedule-candidate" .}}{{end}}</details>{{end}}</section>
+<section class="panel" aria-labelledby="sessions-heading"><h2 id="sessions-heading">Upcoming sessions · next 28 days</h2><p class="schedule-note">Availability never counts as a yes. Pending means no RSVP yet. Share a session link to ask people directly.</p>
+{{range .Sessions}}<article class="schedule-card" id="session-{{.ID}}"><h3>{{.Title}}</h3><p>{{.Label}}</p>
+<ul class="schedule-roster">{{range .Responses}}<li><strong>{{.Name}}</strong>: {{.Response}}</li>{{end}}</ul>
+<form method="post" action="/c/{{$.CrewID}}/schedule/proposals/{{.ID}}/rsvp" class="schedule-actions"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="tz" value="{{$.Zone}}"><input type="hidden" name="duration" value="{{$.Duration}}"><span>Your RSVP:</span><button class="btn btn-sm btn-ghost" name="response" value="yes" aria-pressed="{{eq .MyResponse "yes"}}">Yes</button><button class="btn btn-sm btn-ghost" name="response" value="maybe" aria-pressed="{{eq .MyResponse "maybe"}}">Maybe</button><button class="btn btn-sm btn-ghost" name="response" value="no" aria-pressed="{{eq .MyResponse "no"}}">No</button><button class="btn btn-sm btn-ghost" name="response" value="">Clear RSVP</button></form>
+<div class="schedule-actions"><a href="{{.Href}}">Session link</a><button type="button" class="btn btn-sm btn-ghost" data-copy-link="{{.Href}}" hidden>Copy link</button>
+{{if .CanCancel}}<form method="post" action="/c/{{$.CrewID}}/schedule/proposals/{{.ID}}/cancel"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="tz" value="{{$.Zone}}"><input type="hidden" name="duration" value="{{$.Duration}}"><button class="btn btn-sm btn-ghost">Cancel session</button></form>{{end}}</div></article>{{else}}<p class="schedule-empty">Nothing proposed yet. Find a window, give it a title, then invite the crew to RSVP.</p>{{end}}</section>
+<section class="panel" id="propose" aria-labelledby="proposal-heading"><details {{if .Fields.ProposalStart}}open{{end}}><summary id="proposal-heading">Propose a session</summary><p class="muted">Choose a suggested window above, or enter a time yourself. Suggestions prefill up to 12 hours; adjust before proposing. Everyone RSVPs separately.</p>
 <form method="post" action="/c/{{.CrewID}}/schedule/proposals">
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="tz" value="{{.Zone}}"><input type="hidden" name="duration" value="{{.Duration}}">
 <input type="hidden" name="proposal_start_instant" value="{{.Fields.ProposalStartInstant}}"><input type="hidden" name="proposal_end_instant" value="{{.Fields.ProposalEndInstant}}">
@@ -38,14 +62,7 @@
 <label>Title or game (optional)<input type="text" name="title" value="{{.Fields.Title}}" maxlength="160" placeholder="Game night"></label>
 <label>Starts ({{.Zone}})<input type="datetime-local" name="proposal_start" value="{{.Fields.ProposalStart}}" required></label>
 <label>Ends ({{.Zone}})<input type="datetime-local" name="proposal_end" value="{{.Fields.ProposalEnd}}" required></label>
-<p class="muted">Manually entered ambiguous or nonexistent daylight-saving times cannot be saved; choose a time outside the clock change. Selected suggestions preserve their exact instants and show offsets above.</p><button class="btn btn-primary">Propose session</button></form></section>
-</div></div>
-<section class="panel" aria-labelledby="sessions-heading"><h2 id="sessions-heading">Upcoming sessions · next 28 days</h2><p class="schedule-note">Availability never counts as a yes. Pending means no RSVP yet. Share a session link to ask people directly.</p>
-{{range .Sessions}}<article class="schedule-card" id="session-{{.ID}}"><h3>{{.Title}}</h3><p>{{.Label}}</p>
-<ul class="schedule-roster">{{range .Responses}}<li><strong>{{.Name}}</strong>: {{.Response}}</li>{{end}}</ul>
-<form method="post" action="/c/{{$.CrewID}}/schedule/proposals/{{.ID}}/rsvp" class="schedule-actions"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="tz" value="{{$.Zone}}"><input type="hidden" name="duration" value="{{$.Duration}}"><span>Your RSVP:</span><button class="btn btn-sm btn-ghost" name="response" value="yes" aria-pressed="{{eq .MyResponse "yes"}}">Yes</button><button class="btn btn-sm btn-ghost" name="response" value="maybe" aria-pressed="{{eq .MyResponse "maybe"}}">Maybe</button><button class="btn btn-sm btn-ghost" name="response" value="no" aria-pressed="{{eq .MyResponse "no"}}">No</button><button class="btn btn-sm btn-ghost" name="response" value="">Clear RSVP</button></form>
-<div class="schedule-actions"><a href="{{.Href}}">Session link</a><button type="button" class="btn btn-sm btn-ghost" data-copy-link="{{.Href}}" hidden>Copy link</button>
-{{if .CanCancel}}<form method="post" action="/c/{{$.CrewID}}/schedule/proposals/{{.ID}}/cancel"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="tz" value="{{$.Zone}}"><input type="hidden" name="duration" value="{{$.Duration}}"><button class="btn btn-sm btn-ghost">Cancel session</button></form>{{end}}</div></article>{{else}}<p class="schedule-empty">Nothing proposed yet. Find a window, give it a title, then invite the crew to RSVP.</p>{{end}}</section>
+<p class="muted">Manually entered ambiguous or nonexistent daylight-saving times cannot be saved; choose a time outside the clock change. Selected suggestions preserve their exact instants and show offsets above.</p><button class="btn btn-primary">Propose session</button></form></details></section>
 </div><script src="/static/schedule.js?v={{.Version}}" defer></script>
 {{end}}
 {{define "schedule-candidate"}}<article class="schedule-card"><h3>{{.Label}}</h3><p class="muted">{{.Detail}}</p><a class="btn btn-sm btn-ghost" href="{{.Href}}">Use this window</a></article>{{end}}

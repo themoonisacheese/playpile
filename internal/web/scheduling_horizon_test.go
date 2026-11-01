@@ -11,18 +11,18 @@ func TestSchedulingVisibleDateHorizonAndCleanup(t *testing.T) {
 	f := newPlanningFixture(t)
 	now := time.Now().UTC()
 	minDate, maxDate := scheduleDateRange(now, time.UTC)
-	outside := now.AddDate(0, 0, 14).Format("2006-01-02")
+	outside := now.AddDate(0, 0, 7).Format("2006-01-02")
 	resp, body := do(t, f.clients[0], "GET", f.target, nil, nil)
-	if resp.StatusCode != 200 || !strings.Contains(body, `min="`+minDate+`" max="`+maxDate+`"`) {
-		t.Fatal("editor did not expose exact fourteen-date bounds")
+	if resp.StatusCode != 200 || !strings.Contains(body, `data-min="`+minDate+`" data-max="`+maxDate+`"`) {
+		t.Fatal("editor did not expose exact seven-date bounds")
 	}
 	resp, body = do(t, f.clients[0], "GET", f.target+"?date="+outside, nil, nil)
-	if resp.StatusCode != 400 || !strings.Contains(body, "14-day planning view") {
+	if resp.StatusCode != 400 || !strings.Contains(body, "7-day planning view") {
 		t.Fatal("offscreen selected date must be rejected with actionable dates")
 	}
 	form := url.Values{"date": {outside}, "status": {"available"}, "start": {"18:00"}, "end": {"20:00"}}
 	body = f.post(t, 0, "/availability", form, 400)
-	if !strings.Contains(body, "14-day planning view") || !strings.Contains(body, `value="`+outside+`"`) {
+	if !strings.Contains(body, "7-day planning view") || !strings.Contains(body, `value="`+outside+`"`) {
 		t.Fatal("out-of-range form must preserve input and explain visible horizon")
 	}
 	queryStart := time.Now()
@@ -55,10 +55,10 @@ func TestScheduleDateRangeUsesLocalDates(t *testing.T) {
 		t.Fatal(err)
 	}
 	first, last := scheduleDateRange(time.Date(2030, 1, 2, 20, 0, 0, 0, time.UTC), loc)
-	if first != "2030-01-03" || last != "2030-01-16" {
+	if first != "2030-01-03" || last != "2030-01-09" {
 		t.Fatalf("wrong local bounds %s–%s", first, last)
 	}
-	if err := scheduleValidateDate("2030-01-17", time.Date(2030, 1, 2, 20, 0, 0, 0, time.UTC), loc); err == nil {
-		t.Fatal("15th local date accepted")
+	if err := scheduleValidateDate("2030-01-10", time.Date(2030, 1, 2, 20, 0, 0, 0, time.UTC), loc); err == nil {
+		t.Fatal("8th local date accepted")
 	}
 }

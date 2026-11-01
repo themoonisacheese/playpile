@@ -38,12 +38,45 @@ CREATE TABLE IF NOT EXISTS proposal_responses (
  FOREIGN KEY(crew_id,user_id) REFERENCES memberships(crew_id,user_id) ON DELETE CASCADE
 );`
 
-func (s *Store) migrateScheduling() error { _, err := s.db.Exec(schedulingSchema); return err }
+func (s *Store) migrateScheduling() error {
+	if _, err := s.db.Exec(schedulingSchema); err != nil {
+		return err
+	}
+	rows, err := s.db.Query("PRAGMA table_info(availability_days)")
+	if err != nil {
+		return err
+	}
+	found := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, typ string
+		var def sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &def, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		if name == "blocked" {
+			found = true
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if !found {
+		_, err = s.db.Exec("ALTER TABLE availability_days ADD COLUMN blocked TEXT NOT NULL DEFAULT ''")
+	}
+	return err
+}
 
 type AvailabilityDay struct {
 	UserID     int64
 	Date, Zone string
 	Windows    []schedule.Interval
+	Blocked    []schedule.Interval
+	// Explicit distinguishes sparse slot answers from legacy whole-day review.
+	Explicit bool
 }
 type PlanningMember struct {
 	UserID int64
@@ -97,29 +130,91 @@ func (s *Store) PlanningMembers(crewID, actorID int64) ([]PlanningMember, error)
 // SaveAvailabilityDay atomically replaces the caller's reviewed day. Empty
 // windows is an explicit unavailable answer; ClearAvailabilityDay means unknown.
 func (s *Store) SaveAvailabilityDay(crewID, actorID int64, date, zone string, windows []schedule.Interval) error {
+	return s.saveAvailability(crewID, actorID, date, zone, windows, nil, false)
+}
+
+// SaveAvailabilitySlots replaces only explicit wanted/blocked portions of a day.
+// Everything else is unknown. Intervals are absolute whole-second instants inside the
+// civil day; they need not align with the editor's half-hour grid. Empty lists
+// erase the dated row to unknown.
+func (s *Store) SaveAvailabilitySlots(crewID, actorID int64, date, zone string, wants, blocked []schedule.Interval) error {
+	return s.SaveAvailabilitySlotsBatch(crewID, actorID, zone, []AvailabilitySlotDay{{Date: date, Wants: wants, Blocked: blocked}})
+}
+
+func validateAvailability(date, zone string, windows, blocked []schedule.Interval, explicit bool) (availabilityWrite, error) {
 	bounds, err := schedule.DayBounds(date, zone)
-	if err != nil || len(windows) > 8 {
-		return ErrInvalid
+	limit := 8
+	if explicit {
+		limit = 96
+	}
+	if err != nil || len(windows) > limit || len(blocked) > 96 {
+		return availabilityWrite{}, ErrInvalid
 	}
 	loc, _ := time.LoadLocation(zone)
 	today := time.Now().In(loc).Format("2006-01-02")
 	horizon := time.Now().In(loc).AddDate(0, 0, 27).Format("2006-01-02")
 	if date < today || date > horizon {
-		return ErrInvalid
+		return availabilityWrite{}, ErrInvalid
 	}
 	expiry := bounds.End.Unix()
 	for _, w := range windows {
-		if !w.End.After(w.Start) || w.End.Sub(w.Start) > 24*time.Hour || w.Start.Before(bounds.Start) || !w.Start.Before(bounds.End) || w.Start.Nanosecond() != 0 || w.End.Nanosecond() != 0 {
-			return ErrInvalid
+		if !w.End.After(w.Start) || (!explicit && w.End.Sub(w.Start) > 24*time.Hour) || w.Start.Before(bounds.Start) || !w.Start.Before(bounds.End) || w.Start.Nanosecond() != 0 || w.End.Nanosecond() != 0 {
+			return availabilityWrite{}, ErrInvalid
 		}
 		if w.End.Unix() > expiry {
 			expiry = w.End.Unix()
 		}
 	}
+	blockedRaw := ""
+	if explicit {
+		for _, list := range [][]schedule.Interval{windows, blocked} {
+			for _, w := range list {
+				if !w.End.After(w.Start) || w.Start.Before(bounds.Start) || w.End.After(bounds.End) || w.Start.Nanosecond() != 0 || w.End.Nanosecond() != 0 {
+					return availabilityWrite{}, ErrInvalid
+				}
+			}
+		}
+		for _, w := range windows {
+			for _, b := range blocked {
+				if w.Start.Before(b.End) && b.Start.Before(w.End) {
+					return availabilityWrite{}, ErrInvalid
+				}
+			}
+		}
+		// [] distinguishes a wanted-only slot answer from legacy full-day review.
+		if blocked == nil {
+			blocked = []schedule.Interval{}
+		}
+		raw, err := json.Marshal(blocked)
+		if err != nil {
+			return availabilityWrite{}, ErrInvalid
+		}
+		blockedRaw = string(raw)
+	}
 	encoded, err := json.Marshal(windows)
 	if err != nil {
-		return ErrInvalid
+		return availabilityWrite{}, ErrInvalid
 	}
+	return availabilityWrite{date: date, bounds: bounds, expiry: expiry, windows: string(encoded), blocked: blockedRaw, clear: explicit && len(windows) == 0 && len(blocked) == 0}, nil
+}
+
+type availabilityWrite struct {
+	date             string
+	bounds           schedule.Interval
+	expiry           int64
+	windows, blocked string
+	clear            bool
+}
+
+func (s *Store) saveAvailability(crewID, actorID int64, date, zone string, windows, blocked []schedule.Interval, explicit bool) error {
+	row, err := validateAvailability(date, zone, windows, blocked, explicit)
+	if err != nil {
+		return err
+	}
+	return s.writeAvailability(crewID, actorID, zone, []availabilityWrite{row}, false)
+}
+
+func (s *Store) writeAvailability(crewID, actorID int64, zone string, rows []availabilityWrite, canonicalize bool) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -148,8 +243,23 @@ func (s *Store) SaveAvailabilityDay(crewID, actorID int64, date, zone string, wi
 	if _, err := tx.Exec(`INSERT INTO planning_members(crew_id,user_id,zone) VALUES(?,?,?) ON CONFLICT(crew_id,user_id) DO UPDATE SET zone=excluded.zone`, crewID, actorID, zone); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`INSERT INTO availability_days(crew_id,user_id,date,zone,start_at,end_at,expires_at,windows) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(crew_id,user_id,date) DO UPDATE SET zone=excluded.zone,start_at=excluded.start_at,end_at=excluded.end_at,expires_at=excluded.expires_at,windows=excluded.windows`, crewID, actorID, date, zone, bounds.Start.Unix(), bounds.End.Unix(), expiry, string(encoded)); err != nil {
-		return err
+	if canonicalize {
+		converted, err := canonicalizeAvailability(tx, crewID, actorID)
+		if err != nil {
+			return err
+		}
+		rows = append(converted, rows...)
+	}
+	for _, row := range rows {
+		if row.clear {
+			if _, err := tx.Exec("DELETE FROM availability_days WHERE crew_id=? AND user_id=? AND date=?", crewID, actorID, row.date); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := tx.Exec(`INSERT INTO availability_days(crew_id,user_id,date,zone,start_at,end_at,expires_at,windows,blocked) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(crew_id,user_id,date) DO UPDATE SET zone=excluded.zone,start_at=excluded.start_at,end_at=excluded.end_at,expires_at=excluded.expires_at,windows=excluded.windows,blocked=excluded.blocked`, crewID, actorID, row.date, zone, row.bounds.Start.Unix(), row.bounds.End.Unix(), row.expiry, row.windows, row.blocked); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }
@@ -180,7 +290,7 @@ func (s *Store) AvailabilityDays(crewID, actorID int64, from, to time.Time) ([]A
 	if _, err := s.Membership(crewID, actorID); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(`SELECT user_id,date,zone,windows FROM availability_days WHERE crew_id=? AND start_at<? AND expires_at>? AND expires_at>? ORDER BY date,user_id`, crewID, to.Unix(), from.Unix(), now())
+	rows, err := s.db.Query(`SELECT user_id,date,zone,windows,blocked FROM availability_days WHERE crew_id=? AND start_at<? AND expires_at>? AND expires_at>? ORDER BY date,user_id`, crewID, to.Unix(), from.Unix(), now())
 	if err != nil {
 		return nil, err
 	}
@@ -188,12 +298,18 @@ func (s *Store) AvailabilityDays(crewID, actorID int64, from, to time.Time) ([]A
 	var out []AvailabilityDay
 	for rows.Next() {
 		var d AvailabilityDay
-		var raw string
-		if err := rows.Scan(&d.UserID, &d.Date, &d.Zone, &raw); err != nil {
+		var raw, blocked string
+		if err := rows.Scan(&d.UserID, &d.Date, &d.Zone, &raw, &blocked); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(raw), &d.Windows); err != nil {
 			return nil, err
+		}
+		d.Explicit = blocked != ""
+		if d.Explicit {
+			if err := json.Unmarshal([]byte(blocked), &d.Blocked); err != nil {
+				return nil, err
+			}
 		}
 		out = append(out, d)
 	}

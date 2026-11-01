@@ -36,12 +36,28 @@ func scheduleURL(crewID int64, zone, duration string) string {
 // answers cannot lock a timezone beyond the dates the editor can show.
 func scheduleDateRange(now time.Time, loc *time.Location) (string, string) {
 	local := now.In(loc)
-	return local.Format("2006-01-02"), local.AddDate(0, 0, 13).Format("2006-01-02")
+	return local.Format("2006-01-02"), local.AddDate(0, 0, 6).Format("2006-01-02")
 }
+
+// scheduleWeekBounds ends at the last civil day's actual boundary, even when
+// today's midnight was skipped and the first instant is 01:00.
+func scheduleWeekBounds(now time.Time, loc *time.Location) (schedule.Interval, error) {
+	firstDate, lastDate := scheduleDateRange(now, loc)
+	first, err := schedule.DayBounds(firstDate, loc.String())
+	if err != nil {
+		return schedule.Interval{}, err
+	}
+	last, err := schedule.DayBounds(lastDate, loc.String())
+	if err != nil {
+		return schedule.Interval{}, err
+	}
+	return schedule.Interval{Start: first.Start, End: last.End}, nil
+}
+
 func scheduleValidateDate(date string, now time.Time, loc *time.Location) error {
 	first, last := scheduleDateRange(now, loc)
 	if _, err := time.Parse("2006-01-02", date); err != nil || date < first || date > last {
-		return fmt.Errorf("choose a date in the 14-day planning view (%s through %s); use clear another saved date only to remove an older answer", first, last)
+		return fmt.Errorf("choose a date in the 7-day planning view (%s through %s); use clear another saved date only to remove an older answer", first, last)
 	}
 	return nil
 }
@@ -100,12 +116,12 @@ func (s *Server) scheduleView(r *http.Request, crew store.Crew, mem store.Member
 	}
 	zone = loc.String()
 	now := time.Now()
-	first, err := schedule.DayBounds(now.In(loc).Format("2006-01-02"), zone)
+	first, err := scheduleWeekBounds(now, loc)
 	if err != nil {
 		return nil, err
 	}
 	from := first.Start
-	to := from.In(loc).AddDate(0, 0, 14)
+	to := first.End
 	days, err := s.st.AvailabilityDays(crew.ID, user.ID, from, to)
 	if err != nil {
 		return nil, err
@@ -129,7 +145,10 @@ func (s *Server) scheduleView(r *http.Request, crew store.Crew, mem store.Member
 			if e != nil {
 				return nil, e
 			}
-			a.Reviewed = append(a.Reviewed, bounds)
+			if !d.Explicit {
+				a.Reviewed = append(a.Reviewed, bounds)
+			}
+			a.Blocked = append(a.Blocked, d.Blocked...)
 			a.Windows = append(a.Windows, d.Windows...)
 		}
 		avail = append(avail, a)
@@ -144,7 +163,7 @@ func (s *Server) scheduleView(r *http.Request, crew store.Crew, mem store.Member
 	}
 	view.MinDate, view.MaxDate = scheduleDateRange(now, loc)
 	view.Fields = scheduleFields{Date: selected, Status: "", ProposalStart: r.URL.Query().Get("proposal_start"), ProposalEnd: r.URL.Query().Get("proposal_end"), ProposalStartInstant: r.URL.Query().Get("proposal_start_instant"), ProposalEndInstant: r.URL.Query().Get("proposal_end_instant")}
-	for i := 0; i < 14; i++ {
+	for i := 0; i < 7; i++ {
 		date := from.In(loc).AddDate(0, 0, i)
 		key := date.Format("2006-01-02")
 		state := "Unknown — not answered"
@@ -153,6 +172,9 @@ func (s *Server) scheduleView(r *http.Request, crew store.Crew, mem store.Member
 				continue
 			}
 			state = "Checked — unavailable"
+			if d.Explicit {
+				state = "Marked slots · blank time not answered"
+			}
 			if len(d.Windows) > 0 {
 				var labels []string
 				for _, w := range d.Windows {
@@ -162,7 +184,15 @@ func (s *Server) scheduleView(r *http.Request, crew store.Crew, mem store.Member
 					}
 					labels = append(labels, label)
 				}
-				state = "Available: " + strings.Join(labels, ", ")
+				state = "Want to play: " + strings.Join(labels, ", ")
+			}
+			if d.Explicit {
+				if len(d.Blocked) > 0 {
+					state += fmt.Sprintf(" · %d can't-play window(s)", len(d.Blocked))
+				}
+				if len(d.Windows) > 0 {
+					state += " · blank time not answered"
+				}
 			}
 			if selected == key {
 				view.Fields.Status = "unavailable"
@@ -174,7 +204,15 @@ func (s *Server) scheduleView(r *http.Request, crew store.Crew, mem store.Member
 				}
 			}
 		}
-		view.Days = append(view.Days, scheduleDayVM{Label: date.Format("Mon 02 Jan"), State: state, EditURL: scheduleURL(crew.ID, zone, view.Duration) + "&date=" + key})
+		day, e := scheduleTimetableDay(key, zone, user.ID, days)
+		if e != nil {
+			return nil, e
+		}
+		day.State, day.EditURL = state, scheduleURL(crew.ID, zone, view.Duration)+"&date="+key
+		for j := range day.Slots {
+			day.Slots[j].Draft = r.PostForm.Get("slot:" + day.Slots[j].Start)
+		}
+		view.Days = append(view.Days, day)
 	}
 	if fields != nil {
 		view.Fields = *fields
@@ -209,12 +247,29 @@ func (s *Server) scheduleView(r *http.Request, crew store.Crew, mem store.Member
 			proposalEnd = candidate.Start.Add(12 * time.Hour)
 		}
 		u := scheduleURL(crew.ID, zone, view.Duration) + "&" + url.Values{"proposal_start": {candidate.Start.In(loc).Format("2006-01-02T15:04")}, "proposal_end": {proposalEnd.In(loc).Format("2006-01-02T15:04")}, "proposal_start_instant": {candidate.Start.UTC().Format(time.RFC3339)}, "proposal_end_instant": {proposalEnd.UTC().Format(time.RFC3339)}}.Encode() + "#propose"
-		c := scheduleCandidateVM{Label: scheduleTimeLabel(candidate.Start, candidate.End, loc), Href: u, Whole: candidate.FullCrew, Detail: "Available: " + idsLabel(candidate.Participants) + ". Needs an answer for part/all of this window: " + idsLabel(candidate.Unknown) + ". Cannot make the whole window: " + idsLabel(candidate.Unavailable) + "."}
+		c := scheduleCandidateVM{Label: scheduleTimeLabel(candidate.Start, candidate.End, loc), Href: u, Whole: candidate.FullCrew, Detail: "Want to play: " + idsLabel(candidate.Participants) + ". Needs an answer for part/all of this window: " + idsLabel(candidate.Unknown) + ". Cannot make the whole window: " + idsLabel(candidate.Unavailable) + "."}
+		if c.Whole {
+			c.Detail = "Everyone wants to play."
+		} else {
+			c.Detail = fmt.Sprintf("%d want to play", len(candidate.Participants))
+			if len(candidate.Unknown) > 0 {
+				c.Detail += " · waiting on " + idsLabel(candidate.Unknown)
+			}
+			if len(candidate.Unavailable) > 0 {
+				c.Detail += " · can't make the whole time: " + idsLabel(candidate.Unavailable)
+			}
+		}
 		if c.Whole {
 			view.Whole = append(view.Whole, c)
 		} else {
 			view.Near = append(view.Near, c)
 		}
+	}
+	if len(view.Whole) > 3 {
+		view.MoreWhole, view.Whole = view.Whole[3:], view.Whole[:3]
+	}
+	if len(view.Near) > 3 {
+		view.MoreNear, view.Near = view.Near[3:], view.Near[:3]
 	}
 	proposals, err := s.st.Proposals(crew.ID, user.ID, now, now.Add(28*24*time.Hour))
 	if err != nil {
@@ -270,11 +325,14 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {
 
 // All scheduling writes require a real form CSRF token, including JSON requests.
 func (s *Server) schedulePost(w http.ResponseWriter, r *http.Request, sess store.Session) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+	return s.schedulePostLimit(w, r, sess, 32<<10)
+}
+func (s *Server) schedulePostLimit(w http.ResponseWriter, r *http.Request, sess store.Session, limit int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	if err := r.ParseForm(); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			s.fail(w, r, http.StatusRequestEntityTooLarge, "Form too large", "Keep scheduling forms below 32 KiB.")
+			s.fail(w, r, http.StatusRequestEntityTooLarge, "Form too large", "Keep scheduling forms within the request size limit.")
 		} else {
 			s.fail(w, r, http.StatusBadRequest, "Could not read form", "Check the form values and try again.")
 		}

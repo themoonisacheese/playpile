@@ -177,9 +177,10 @@ sorting), web (a full HTTP flow: login → crew → add → vote → own → inv
 ## Find a time to play
 
 Open **find a time** from a crew. Choose your timezone, then mark availability
-for specific dates over the next two weeks. Each date can have several playable
-windows (including overnight), an explicit **checked — unavailable** answer, or
-no answer yet. Saving edits only that date; it does not create a weekly routine.
+for specific dates over the next seven days. Paint **Want to play**, **Can’t play**, or **Erase**
+on half-hour slots. Blank time is unknown—not a no. Drag on desktop; pick a day
+and tap slots on your phone. Saving applies your edited days together; it does
+not create a weekly routine.
 
 Playpile suggests continuous whole-crew windows, with near matches shown
 separately and missing answers distinguished from known blockers. Choose a

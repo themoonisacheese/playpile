@@ -10,7 +10,10 @@ import (
 
 // Compare matching against a discrete independent oracle. A cell is either
 // unknown, reviewed-unavailable, or reviewed-available for each member.
-func TestSuggestionsDiscreteOracle(t *testing.T) {
+func TestSuggestionsDiscreteOracle(t *testing.T)      { testSuggestionsDiscreteOracle(t, false) }
+func TestSuggestionsExplicitSlotsOracle(t *testing.T) { testSuggestionsDiscreteOracle(t, true) }
+
+func testSuggestionsDiscreteOracle(t *testing.T, explicit bool) {
 	const cells = 32
 	const users = 4
 	step := 15 * time.Minute
@@ -33,6 +36,9 @@ func TestSuggestionsDiscreteOracle(t *testing.T) {
 				for i := 0; i < cells; {
 					matches := func(n int) bool {
 						if kind == 1 {
+							if explicit {
+								return state[u][n] == 1
+							}
 							return state[u][n] != 0
 						}
 						return state[u][n] == 2
@@ -47,7 +53,13 @@ func TestSuggestionsDiscreteOracle(t *testing.T) {
 					}
 					interval := schedule.Interval{Start: origin.Add(time.Duration(i) * step), End: origin.Add(time.Duration(end) * step)}
 					if kind == 1 {
-						members[u].Reviewed = append(members[u].Reviewed, interval)
+						if explicit {
+							members[u].Blocked = append(members[u].Blocked, interval)
+							// Add conflicting interest too: an explicit blocker must win.
+							members[u].Windows = append(members[u].Windows, interval)
+						} else {
+							members[u].Reviewed = append(members[u].Reviewed, interval)
+						}
 					} else {
 						members[u].Windows = append(members[u].Windows, interval)
 					}

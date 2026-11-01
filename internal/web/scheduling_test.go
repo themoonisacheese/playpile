@@ -99,12 +99,12 @@ func TestSchedulingHTTPFlow(t *testing.T) {
 	}
 	f.post(t, 1, "/availability", available(), 303)
 	_, body = do(t, f.clients[0], "GET", f.target, nil, nil)
-	if !strings.Contains(body, "Needs an answer for part/all of this window: Cy") {
+	if !strings.Contains(body, "waiting on Cy") {
 		t.Fatalf("unknown members must be pending in near match: %s", body)
 	}
 	f.post(t, 2, "/availability", url.Values{"date": {date}, "status": {"unavailable"}}, 303)
 	_, body = do(t, f.clients[0], "GET", f.target, nil, nil)
-	if !strings.Contains(body, "Cannot make the whole window: Cy") || !strings.Contains(body, "Needs an answer for part/all of this window: none") {
+	if !strings.Contains(body, "can&#39;t make the whole time: Cy") || strings.Contains(body, "waiting on Cy") {
 		t.Fatal("explicit no must not be pending")
 	}
 	f.post(t, 1, "/availability", available(), 303)
@@ -118,7 +118,7 @@ func TestSchedulingHTTPFlow(t *testing.T) {
 		t.Fatal("saved date GET")
 	}
 	_, body = do(t, f.clients[0], "GET", f.target+"?tz=UTC&date="+date, nil, nil)
-	if !strings.Contains(body, `value="18:00"`) {
+	if !strings.Contains(body, `data-slot="`+date+`T18:00:00Z" data-state="want"`) {
 		t.Fatal("saved editor not prepopulated")
 	}
 	suggestion := regexp.MustCompile(`<a class="btn btn-sm btn-ghost" href="([^"]+)">Use this window`).FindStringSubmatch(body)
@@ -177,7 +177,7 @@ func TestSchedulingHTTPFlow(t *testing.T) {
 	}
 	f.post(t, 0, "/availability", url.Values{"date": {date}, "status": {"unknown"}}, 303)
 	_, body = do(t, f.clients[0], "GET", f.target+"?date="+date, nil, nil)
-	if !strings.Contains(body, `value="" selected`) {
+	if !strings.Contains(body, `data-state="unknown"`) {
 		t.Fatal("clear did not restore unknown")
 	}
 }

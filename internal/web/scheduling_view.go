@@ -2,7 +2,12 @@ package web
 
 import "playpile/internal/store"
 
-type scheduleDayVM struct{ Label, State, EditURL string }
+type scheduleSlotVM struct{ Start, End, Time, Label, State, Symbol, Draft string }
+type scheduleDayVM struct {
+	Label, ShortLabel, State, EditURL, Date string
+	Slots                                   []scheduleSlotVM
+}
+
 type scheduleWindowFields struct {
 	Start, End string
 	Overnight  bool
@@ -35,5 +40,6 @@ type schedulePageView struct {
 	Fields                scheduleFields
 	Days                  []scheduleDayVM
 	Whole, Near           []scheduleCandidateVM
+	MoreWhole, MoreNear   []scheduleCandidateVM
 	Sessions              []scheduleSessionVM
 }

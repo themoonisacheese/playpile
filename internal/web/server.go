@@ -169,6 +169,7 @@ func (s *Server) routes() {
 	mux.HandleFunc("GET /c/{crew}/members", s.handleMembers)
 	mux.HandleFunc("GET /c/{crew}/schedule", s.handleSchedule)
 	mux.HandleFunc("POST /c/{crew}/schedule/availability", s.handleScheduleAvailability)
+	mux.HandleFunc("POST /c/{crew}/schedule/slots", s.handleScheduleSlots)
 	mux.HandleFunc("POST /c/{crew}/schedule/proposals", s.handleScheduleProposal)
 	mux.HandleFunc("POST /c/{crew}/schedule/proposals/{id}/rsvp", s.handleScheduleRSVP)
 	mux.HandleFunc("POST /c/{crew}/schedule/proposals/{id}/cancel", s.handleScheduleCancel)
