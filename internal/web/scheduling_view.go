@@ -2,7 +2,16 @@ package web
 
 import "playpile/internal/store"
 
-type scheduleSlotVM struct{ Start, End, Time, Label, State, Symbol, Draft string }
+type scheduleSlotVM struct {
+	Start, End, Time, Label, State, Symbol, Draft string
+	CrewStates, CrewSummary                       string
+	CrewBars                                      []string
+	CrewMore                                      int
+}
+type scheduleCrewMemberVM struct {
+	Name           string
+	Wants, Blocked []string
+}
 type scheduleDayVM struct {
 	Label, ShortLabel, State, EditURL, Date string
 	Slots                                   []scheduleSlotVM
@@ -39,6 +48,7 @@ type schedulePageView struct {
 	MinDate, MaxDate      string
 	Fields                scheduleFields
 	Days                  []scheduleDayVM
+	CrewMembers           []scheduleCrewMemberVM
 	Whole, Near           []scheduleCandidateVM
 	MoreWhole, MoreNear   []scheduleCandidateVM
 	Sessions              []scheduleSessionVM

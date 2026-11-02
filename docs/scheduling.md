@@ -22,6 +22,29 @@ settings must not silently discard edits. A native form fallback remains usable
 without JavaScript. A few readable suggestions follow the timetable; sessions
 and RSVPs remain separate below it.
 
+### Seeing crewmates’ choices
+
+The main cell remains your paint target. A separate read-only side button shows
+up to four crewmate strips in roster order, with a `+` for a larger roster.
+Solid, broken, outlined and half-filled strips distinguish want/cannot/unknown/
+partial states. Hover names or open the keyboard/touch-friendly dialog; inspection
+never paints, saves, changes the selected mode or discards unsaved work. Escape
+and Close return focus to the inspector. Only current crewmates appear, excluding
+the viewer; someone who has never answered is still shown as unknown.
+
+Every mark uses absolute instants, projected into the viewer’s timezone. A full
+slot is positive/blocked only when the entire cell is covered; mixed or partial
+coverage is labelled separately. The saved-times disclosure provides exact dates,
+offsets and sub-minute legacy edges and also works without JavaScript. These are
+saved choices, not live updates or RSVPs; refresh to see subsequent crew changes.
+
+`internal/web/scheduling_crew.go` reuses the already-authorized crew rows and
+canonicalizes once per member, unions adjacent source-day pieces and classifies
+cells with binary-search coverage. It adds no database reads, writes, migration,
+matching logic or game-list work. Names and exact ranges appear once per roster;
+each cell carries one state byte per crewmate and at most four visual strips.
+Work scales with the bounded week and current roster, never historical requests.
+
 ## Ownership
 
 - `internal/schedule`: pure date/slot generation, interval painting and overlap.

@@ -15,9 +15,13 @@ class Node {
   getBoundingClientRect() { return { top:100, height:40 }; }
   querySelector(selector) { return this.one?.[selector] || null; }
   querySelectorAll(selector) { return this.many?.[selector] || []; }
-  closest(selector) { return selector === '[data-day]' ? this.day || null : selector === '[data-slot]' ? this : null; }
+  closest(selector) { return selector === '[data-day]' ? this.day || null : selector === '[data-slot]' && this.dataset.slot ? this : null; }
+  append(...children) { (this.children ||= []).push(...children); }
+  replaceChildren(...children) { this.children = [...children]; }
+  showModal() { this.open = true; }
+  close() { this.open = false; }
 }
-function setup(storage = new Map()) {
+function setup(storage = new Map(), crew = false) {
   const root = new Node(), doc = new Node(), win = new Node();
   const editor = new Node(), form = new Node(), save = new Node(), status = new Node(), error = new Node(), scroll = new Node(), native = new Node();
   scroll.scrollTop=0;scroll.scrollHeight=5000;scroll.clientHeight=480;
@@ -35,6 +39,14 @@ function setup(storage = new Map()) {
   const clears=days.map(day=>Object.assign(new Node({clearDay:day.dataset.day}),{day}));
   root.one={'[data-paint-editor]':editor,'[data-slot-save]':form,'[data-save-button]':save,'[data-save-status]':status,'[data-save-error]':error,'[data-week-scroll]':scroll,'[data-timezone]':zone,'[data-detected-zone]':detected,'[data-native-editor]':native};
   root.many={'[data-slot]':slots,'[data-mode]':modes,'[data-day-tab]':tabs,'[data-clear-day]':clears,'[data-day]':days};
+  const crewDialog=new Node(),crewList=new Node(),crewTime=new Node(),crewClose=new Node(),crewSaved=new Node();
+  const crewNames=['Cy <script>','Bob'].map(textContent=>Object.assign(new Node(),{textContent}));
+  const peek=Object.assign(new Node({crewSlot:slots[0].dataset.slot,crewStates:'wu',crewLabel:'Tue 1 Jan 15:00 → 15:30 +00:00'}),{title:'Crew: 1 want, 1 unknown'});
+  if(crew){
+    Object.assign(root.one,{'[data-crew-dialog]':crewDialog,'[data-crew-choices]':crewList,'[data-crew-time]':crewTime,'[data-crew-close]':crewClose,'[data-crew-saved]':crewSaved});
+    Object.assign(root.many,{'[data-crew-name]':crewNames,'[data-crew-slot]':[peek]});
+  }
+  doc.createElement=()=>new Node();
   doc.querySelector=()=>root;
   let hit=slots[0], reloads=0, requests=[], failure=true;
   doc.elementFromPoint=()=>hit;
@@ -42,7 +54,7 @@ function setup(storage = new Map()) {
     fetch:async(url,request)=>{requests.push(request);return {ok:!failure,redirected:false,json:async()=>({saved:true})};}};
   win.confirm=()=>false;
   vm.runInNewContext(source,context);
-  return {root,doc,win,slots,modes,tabs,clears,form,save,status,error,editor,native,scroll,storage,requests,get reloads(){return reloads},set hit(value){hit=value},set failure(value){failure=value}};
+  return {root,doc,win,slots,modes,tabs,clears,form,save,status,error,editor,native,scroll,storage,requests,crewDialog,crewList,crewTime,crewClose,peek,crewSaved,get reloads(){return reloads},set hit(value){hit=value},set failure(value){failure=value}};
 }
 const mouse=(extra={})=>({button:0,pointerId:1,pointerType:'mouse',clientX:10,clientY:10,...extra});
 
@@ -95,4 +107,34 @@ test('invalid, stale and out-of-week bookmarks are consumed without restoring; s
  }
  const f=setup();f.win.sessionStorage={setItem(){throw new Error('disabled')}};
  await f.slots[0].emit('click',{detail:0});f.failure=false;await f.form.emit('submit');assert.equal(f.reloads,1);assert.match(f.status.textContent,/Saved/);
+});
+
+
+test('crew controls show names safely and never paint, submit or discard an unsaved edit',async()=>{
+ const f=setup(new Map(),true);
+ await f.slots[0].emit('click',{detail:0});
+ const before=f.status.textContent;
+ await f.peek.emit('pointerenter');
+ assert.match(f.peek.title,/Cy <script>: ✓ Want to play/);assert.match(f.peek.title,/Bob: · Not answered/);
+ await f.peek.emit('pointerleave');assert.equal(f.peek.title,'Crew: 1 want, 1 unknown');
+ await f.peek.emit('click',{detail:0});
+ assert.equal(f.crewDialog.open,true);assert.equal(f.crewList.children.length,2);
+ assert.equal(f.crewList.children[0].children[0].textContent,'Cy <script>');
+ assert.equal(f.crewList.children[0].children[1].dataset.crewState,'want');
+ assert.equal(f.crewList.children[1].children[1].textContent,'· Not answered');
+ assert.equal(f.crewTime.textContent,f.peek.dataset.crewLabel);
+ assert.equal(f.status.textContent,before);assert.equal(f.requests.length,0);
+ assert.equal(f.slots[0].dataset.state,'want');assert.equal(f.slots[1].dataset.state,'unknown');
+ await f.crewClose.emit('click');assert.equal(f.crewDialog.open,false);
+});
+
+test('paint dragging over a crew side control skips it; partial and unknown details stay distinct',async()=>{
+ const f=setup(new Map(),true);
+ await f.slots[0].emit('pointerdown',mouse());f.hit=f.peek;
+ await f.doc.emit('pointermove',mouse({clientY:80}));await f.doc.emit('pointerup',mouse());
+ assert.equal(f.slots[0].dataset.state,'want');assert.equal(f.slots[1].dataset.state,'unknown');assert.equal(f.peek.dataset.state,undefined);
+ f.peek.dataset.crewStates='mc';await f.peek.emit('click',{detail:1});
+ assert.match(f.crewList.children[0].children[1].textContent,/Partly marked/);
+ assert.equal(f.crewList.children[1].children[1].textContent,"× Can't play");
+ await f.crewClose.emit('click');assert.match(f.status.textContent,/Unsaved/);
 });

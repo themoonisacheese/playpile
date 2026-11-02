@@ -180,7 +180,9 @@ Open **find a time** from a crew. Choose your timezone, then mark availability
 for specific dates over the next seven days. Paint **Want to play**, **Can’t play**, or **Erase**
 on half-hour slots. Blank time is unknown—not a no. Drag on desktop; pick a day
 and tap slots on your phone. Saving applies your edited days together; it does
-not create a weekly routine.
+not create a weekly routine. Slim bars beside each slot show crewmates’ saved
+choices; hover for names, or select the bars for a read-only list. Their marks
+use your displayed clock, and partial answers stay distinct from unknown time.
 
 Playpile suggests continuous whole-crew windows, with near matches shown
 separately and missing answers distinguished from known blockers. Choose a

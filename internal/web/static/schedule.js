@@ -113,6 +113,42 @@
   root.addEventListener('submit', event => {
     if (event.target !== form && dirty.size && !window.confirm('Leave without saving your painted slots?')) event.preventDefault();
   });
+  // A sibling control, never nested in a paint button. No requests or writes.
+  const crewDialog = root.querySelector('[data-crew-dialog]');
+  const crewNames = [...root.querySelectorAll('[data-crew-name]')].map(node => node.textContent);
+  const crewLabels = { w: '✓ Want to play', c: "× Can't play", u: '· Not answered', m: '◐ Partly marked — not a full-slot answer' };
+  const crewStates = { w: 'want', c: 'cant', u: 'unknown', m: 'mixed' };
+  if (crewDialog && crewNames.length) {
+    const list = root.querySelector('[data-crew-choices]');
+    root.querySelectorAll('[data-crew-slot]').forEach(button => {
+      const summary = button.title;
+      button.addEventListener('pointerenter', () => {
+        button.title = crewNames.map((name, i) => `${name}: ${crewLabels[button.dataset.crewStates[i]] || crewLabels.u}`).join('\n');
+      });
+      button.addEventListener('pointerleave', () => { button.title = summary; });
+      button.addEventListener('click', () => {
+        drag = null;
+        if (typeof crewDialog.showModal !== 'function') {
+          const saved = root.querySelector('[data-crew-saved]');
+          saved.open = true; saved.scrollIntoView({ block: 'center' });
+          return;
+        }
+        root.querySelector('[data-crew-time]').textContent = button.dataset.crewLabel;
+        list.replaceChildren();
+        crewNames.forEach((name, i) => {
+          const code = button.dataset.crewStates[i];
+          const item = document.createElement('li');
+          const who = document.createElement('strong'); who.textContent = name;
+          const answer = document.createElement('span');
+          answer.dataset.crewState = crewStates[code] || 'unknown';
+          answer.textContent = crewLabels[code] || crewLabels.u;
+          item.append(who, answer); list.append(item);
+        });
+        crewDialog.showModal();
+      });
+    });
+    root.querySelector('[data-crew-close]').addEventListener('click', () => crewDialog.close());
+  }
   const zone = root.querySelector('[data-timezone]');
   const detected = root.querySelector('[data-detected-zone]');
   try {

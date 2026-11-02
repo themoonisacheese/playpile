@@ -214,6 +214,10 @@ func (s *Server) scheduleView(r *http.Request, crew store.Crew, mem store.Member
 		}
 		view.Days = append(view.Days, day)
 	}
+	view.CrewMembers, err = scheduleCrewTimetable(view.Days, members, user.ID, days, zone)
+	if err != nil {
+		return nil, err
+	}
 	if fields != nil {
 		view.Fields = *fields
 	}
